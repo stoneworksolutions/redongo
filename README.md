@@ -6,13 +6,16 @@ redongo is a utility written in Python that allows us to enqueue bulk saves to m
 
 Server:
 
-python server.py
+```
+python server.py --redis dev-redis --redisdb 2 --redisqueue TEST
+```
 
 Client
 
 ```
-import redongo
-redongo.save(objects_to_save, mongo_host, mongo_collection, bulk_size, ttl)
+import redongo_client
+redongo_client.set_application_settings(application_name, mongo_host, mongo_port, mongo_collection, mongo_user, mongo_password)
+redongo_client.save_to_mongo(application_name, objects_to_save)
 ```
 
 ## Motivation
