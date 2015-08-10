@@ -2,6 +2,20 @@ import os
 import redongo_utils
 import ujson
 
+class InvalidClass(Exception):
+    def __init__(self, value):
+        self.parameter = value
+
+    def __str__(self):
+        return repr(self.parameter)
+
+
+class InexistentAppSettings(Exception):
+    def __init__(self, value):
+        self.parameter = value
+
+    def __str__(self):
+        return repr(self.parameter)
 
 class RedongoClient():
     def __init__(self, redis_host, redis_db, redis_queue, redis_port=6379):
@@ -70,8 +84,8 @@ class RedongoClient():
 
     def save_to_mongo(self, application_name, objects_to_save):
         if not self.redis.exists('redongo_{0}'.format(application_name)):
-            raise Exception('Application settings for app {0} does not exist'.format(application_name))
-        if not hasattr(objects_to_save, '__iter__'):
+            raise InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
+        if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == str:
             objects_to_save = [objects_to_save]
         final_objects_to_save = []
         for obj in objects_to_save:
@@ -83,6 +97,6 @@ class RedongoClient():
                     valid = False
 
             if not valid:
-                raise Exception('Saving invalid class')
+                raise InvalidClass('Saving invalid class')
             final_objects_to_save.append(obj)
         self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))
