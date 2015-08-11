@@ -1,8 +1,10 @@
 language: python
 python:
   - "2.7"
-# command to instddall dependencies
-#install: "pip install -r requirements.txt"
+install: 
+  - pip install -r requirements.txt
+  - pip install pep8
+  - pip install pyflakes
 # command to run tests
 #script: nosetests
 before_script:
