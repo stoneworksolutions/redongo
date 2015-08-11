@@ -1,7 +1,7 @@
 import os
 from utils import redis_utils
 from utils import cipher_utils
-import client.exceptions
+import client_exceptions
 import ujson
 
 
@@ -72,7 +72,7 @@ class RedongoClient():
 
     def save_to_mongo(self, application_name, objects_to_save):
         if not self.redis.exists('redongo_{0}'.format(application_name)):
-            raise client.exceptions.InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
+            raise client_exceptions.InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
         if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == dict:
             objects_to_save = [objects_to_save]
         final_objects_to_save = []
@@ -85,6 +85,6 @@ class RedongoClient():
                     valid = False
 
             if not valid:
-                raise client.exceptions.InvalidClass('Saving invalid class')
+                raise client_exceptions.InvalidClass('Saving invalid class')
             final_objects_to_save.append(obj)
         self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))

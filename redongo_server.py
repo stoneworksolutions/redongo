@@ -3,7 +3,7 @@ import logging
 import logging.handlers
 import os
 import pymongo
-import server.exceptions
+import server_exceptions
 import signal
 import sys
 import time
@@ -67,7 +67,7 @@ class RedongoServer(object):
 
     def check_object(self, obj):
         if type(obj) != list or len(obj) != 2:
-            raise server.exceptions.ObjectValidationError('Type not valid')
+            raise server_exceptions.ObjectValidationError('Type not valid')
 
     def get_application_settings(self, application_name):
         # TODO: Add settings validation
@@ -86,13 +86,13 @@ class RedongoServer(object):
 
             for f in fields_to_validate:
                 if not application_settings.get(f, None):
-                    raise server.exceptions.ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
+                    raise server_exceptions.ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
 
             return application_settings
         except TypeError:
-            raise server.exceptions.ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
+            raise server_exceptions.ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
         except ValueError:
-            raise server.exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
+            raise server_exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
 
     def run(self):
         try:
@@ -108,7 +108,7 @@ class RedongoServer(object):
                     try:
                         self.check_object(obj)
                         application_settings = self.get_application_settings(obj[0])
-                    except (server.exceptions.ObjectValidationError, server.exceptions.ApplicationSettingsError), e:
+                    except (server_exceptions.ObjectValidationError, server_exceptions.ApplicationSettingsError), e:
                         logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
                         continue
                     application_bulk = self.bulks.setdefault(obj[0], {'data': []})
