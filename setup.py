@@ -1,13 +1,16 @@
-from setuptools import setup
+from setuptools import setup, find_packages
+
+DIRS_EXCLUDED = ['dist', 'build', 'docs']
+
 setup(
   name = 'redongo',
-  packages = ['redongo'], # this must be the same as the name abovei
-  version = '0.1.1',
+  packages = find_packages(exclude=DIRS_EXCLUDED),
+  version = '0.1.3',
   description = 'Gets stuff from a Redis queue and inserts it in Mongo',
   author = 'StoneWork Solutions',
   author_email = 'dev@stoneworksolutions.net',
   url = 'https://github.com/stoneworksolutions/redongo',
-  download_url = 'https://github.com/stoneworksolutions/redongo/tarball/0.1.0',
+  download_url = 'https://github.com/stoneworksolutions/redongo/tarball/0.1.2',
   keywords = ['redis', 'mongo', 'bulks'], # arbitrary keywords
   classifiers = [],
   install_requires = [
