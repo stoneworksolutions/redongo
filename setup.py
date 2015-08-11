@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-DIRS_EXCLUDED = ['dist', 'build', 'docs']
+DIRS_EXCLUDED = ['dist', 'build', 'docs', 'tests']
 
 setup(
   name = 'redongo',
