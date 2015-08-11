@@ -7,7 +7,8 @@ import signal
 import sys
 import time
 import ujson
-import redongo_utils
+from utils import redis_utils
+from utils import cipher_utils
 from optparse import OptionParser
 from pymongo.errors import DuplicateKeyError
 from twisted.internet import reactor
@@ -70,14 +71,14 @@ class RedongoServer(object):
             return result
 
         logger.debug('Starting Redongo Server..')
-        self.redis = redongo_utils.get_redis_connection(options.redisIP, redis_db=options.redisDB)
+        self.redis = redis_utils.get_redis_connection(options.redisIP, redis_db=options.redisDB)
         self.keep_going = True
         self.redisQueue = options.redisQueue
         self.popSize = options.popSize
         self.bulks = {}
         self.objs = []
         self.busy = False
-        self.cipher = redongo_utils.AESCipher(__get_sk__())
+        self.cipher = cipher_utils.AESCipher(__get_sk__())
 
     def check_object(self, obj):
         if type(obj) != list or len(obj) != 2:
@@ -113,7 +114,7 @@ class RedongoServer(object):
             logger.debug('Running!')
             while self.keep_going:
                 self.objs.append(self.redis.blpop(self.redisQueue)[1])
-                self.objs.extend(redongo_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
                 while self.busy:
                     time.sleep(0.1)
                 self.busy = True

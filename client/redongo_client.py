@@ -1,25 +1,13 @@
 import os
-import redongo_utils
+from utils import redis_utils
+from utils import cipher_utils
+import client.exceptions
 import ujson
 
-class InvalidClass(Exception):
-    def __init__(self, value):
-        self.parameter = value
-
-    def __str__(self):
-        return repr(self.parameter)
-
-
-class InexistentAppSettings(Exception):
-    def __init__(self, value):
-        self.parameter = value
-
-    def __str__(self):
-        return repr(self.parameter)
 
 class RedongoClient():
     def __init__(self, redis_host, redis_db, redis_queue, redis_port=6379):
-        self.redis = redongo_utils.get_redis_connection(redis_host, redis_db=redis_db, redis_port=redis_port)
+        self.redis = redis_utils.get_redis_connection(redis_host, redis_db=redis_db, redis_port=redis_port)
         if redis_queue:
             self.redis_queue = redis_queue
         else:
@@ -42,7 +30,7 @@ class RedongoClient():
         app_data['mongo_database'] = mongo_database
         app_data['mongo_collection'] = mongo_collection
         app_data['mongo_user'] = mongo_user
-        cipher = redongo_utils.AESCipher(__get_sk__())
+        cipher = cipher_utils.AESCipher(__get_sk__())
         app_data['mongo_password'] = cipher.encrypt(mongo_password)
         app_data['bulk_size'] = bulk_size
         app_data['bulk_expiration'] = bulk_expiration
@@ -84,8 +72,8 @@ class RedongoClient():
 
     def save_to_mongo(self, application_name, objects_to_save):
         if not self.redis.exists('redongo_{0}'.format(application_name)):
-            raise InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
-        if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == str:
+            raise client.exceptions.InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
+        if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == dict:
             objects_to_save = [objects_to_save]
         final_objects_to_save = []
         for obj in objects_to_save:
@@ -97,6 +85,6 @@ class RedongoClient():
                     valid = False
 
             if not valid:
-                raise InvalidClass('Saving invalid class')
+                raise client.exceptions.InvalidClass('Saving invalid class')
             final_objects_to_save.append(obj)
         self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))
