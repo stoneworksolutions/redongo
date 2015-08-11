@@ -11,7 +11,7 @@ class RedongoClient():
         if redis_queue:
             self.redis_queue = redis_queue
         else:
-            raise Exception('Not valid queue received: {0}'.format(redis_queue))
+            raise client_exceptions.NoQueueParameter('Not valid queue received: {0}'.format(redis_queue))
 
     def set_application_settings(self, application_name, mongo_host, mongo_port, mongo_database, mongo_collection, mongo_user, mongo_password, bulk_size=100, bulk_expiration=60):
 
