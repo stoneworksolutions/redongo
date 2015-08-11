@@ -3,8 +3,8 @@ python:
   - "2.7"
 install: 
   - python setup.py install
+  - pip install pep8
   - pip install pyflakes
-  - pip install redongo
 before_script:
   - pip install -r requirements.txt
   - pep8 --exclude=migrations --ignore=E501,E225,E226 redongo
