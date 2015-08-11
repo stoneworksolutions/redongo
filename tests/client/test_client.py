@@ -9,8 +9,4 @@ class TestClient:
 
     def test_instanceclientNOQUEUE(self):
         with pytest.raises(client_exceptions.NoQueueParameter):
-            redongo_client.RedongoClient('localhost', 0)
-
-    def test_two(self):
-        x = "hello"
-        assert hasattr(x, 'check')
+            redongo_client.RedongoClient('localhost', 0, None)
