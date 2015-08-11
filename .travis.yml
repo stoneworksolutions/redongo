@@ -6,5 +6,5 @@ python:
 # command to run tests
 #script: nosetests
 before_script:
-  - pep8 --exclude=migrations --ignore=E501,E225 redongo
+  - pep8 --exclude=migrations --ignore=E501,E225,E226 redongo
   - pyflakes -x W redongo
