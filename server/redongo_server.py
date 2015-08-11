@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 import os
 import pymongo
+import server.exceptions
 import signal
 import sys
 import time
@@ -45,22 +46,6 @@ for required_option in filter(lambda x: x.__dict__['metavar'] in required_option
 rs = None
 
 
-class ObjectValidationError(Exception):
-    def __init__(self, value):
-        self.parameter = value
-
-    def __str__(self):
-        return repr(self.parameter)
-
-
-class ApplicationSettingsError(Exception):
-    def __init__(self, value):
-        self.parameter = value
-
-    def __str__(self):
-        return repr(self.parameter)
-
-
 class RedongoServer(object):
     def __init__(self, *args, **kwargs):
         def __get_sk__():
@@ -82,7 +67,7 @@ class RedongoServer(object):
 
     def check_object(self, obj):
         if type(obj) != list or len(obj) != 2:
-            raise ObjectValidationError('Type not valid')
+            raise server.exceptions.ObjectValidationError('Type not valid')
 
     def get_application_settings(self, application_name):
         # TODO: Add settings validation
@@ -101,13 +86,13 @@ class RedongoServer(object):
 
             for f in fields_to_validate:
                 if not application_settings.get(f, None):
-                    raise ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
+                    raise server.exceptions.ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
 
             return application_settings
         except TypeError:
-            raise ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
+            raise server.exceptions.ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
         except ValueError:
-            raise ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
+            raise server.exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
 
     def run(self):
         try:
@@ -123,7 +108,7 @@ class RedongoServer(object):
                     try:
                         self.check_object(obj)
                         application_settings = self.get_application_settings(obj[0])
-                    except (ObjectValidationError, ApplicationSettingsError), e:
+                    except (server.exceptions.ObjectValidationError, server.exceptions.ApplicationSettingsError), e:
                         logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
                         continue
                     application_bulk = self.bulks.setdefault(obj[0], {'data': []})
