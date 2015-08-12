@@ -1,6 +1,7 @@
 import contextlib
 import pymongo
 import redis
+import redongo
 import sys
 import signal
 
@@ -34,8 +35,7 @@ class TestServer:
         signal.alarm(10)
 
         with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE)):
-            from redongo import redongo_server
-            redongo_server.main()
+            redongo.redongo_server.main()
 
         r = redis.Redis(REDIS_HOST, db=REDIS_DB)
         assert r.llen(REDIS_QUEUE) == 0
