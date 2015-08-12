@@ -34,7 +34,7 @@ class TestServer:
     def test__RedongoServer__OK1(self):
         signal.alarm(10)
 
-        with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE)):
+        with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE), '-l', '0'):
             redongo_server.main()
 
         r = redis.Redis(REDIS_HOST, db=REDIS_DB)

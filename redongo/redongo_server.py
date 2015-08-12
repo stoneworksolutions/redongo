@@ -22,12 +22,7 @@ FACILITY = "local0"
 logging.basicConfig()
 logger = logging.getLogger()
 
-# With this line the logs are sent to syslog.
-handler = logging.handlers.SysLogHandler("/dev/log", FACILITY)
 formatter = logging.Formatter('PID:%(process)s %(filename)s %(funcName)s %(levelname)s %(message)s')
-handler.setFormatter(formatter)
-
-logger.addHandler(handler)
 
 logger.setLevel(logging.DEBUG)
 
@@ -199,18 +194,27 @@ def main():
     global rs
     global options
     global args
+    global logger
 
     parser = OptionParser(description='Startup options')
     parser.add_option('--redis', '-r', dest='redisIP', help='Redis server IP Address', metavar='REDIS')
     parser.add_option('--redisdb', '-d', dest='redisDB', help='Redis server DB', metavar='REDIS_DB')
     parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
     parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
+    parser.add_option('--logger', '-l', dest='logger', help='Logger Usage', metavar='LOGGER_USAGE', default='1')
     (options, args) = parser.parse_args()
 
     for required_option in filter(lambda x: x.__dict__['metavar'] in required_options, parser.option_list):
         if not getattr(options, required_option.dest):
             logger.error('Option {0} not found'.format(required_option.metavar))
             sys.exit(-1)
+
+    # With this line the logs are sent to syslog.
+    if options.logger != '0':
+        handler = logging.handlers.SysLogHandler("/dev/log", FACILITY)
+        handler.setFormatter(formatter)
+
+        logger.addHandler(handler)
 
     signal.signal(signal.SIGHUP, closeApp)
     signal.signal(signal.SIGTERM, closeApp)
