@@ -2,6 +2,9 @@
 REDONGO
 *******
 
+.. image:: https://travis-ci.org/stoneworksolutions/redongo.svg?branch=0.1.5
+    :target: https://travis-ci.org/stoneworksolutions/redongo
+
 ========
 Synopsis
 ========
@@ -16,15 +19,15 @@ Server:
 
 .. code:: bash
 
-  $ python server.py --redis dev-redis --redisdb 2 --redisqueue TEST
+    $ python server.py --redis dev-redis --redisdb 2 --redisqueue TEST
 
 Client
 
 .. code:: python
 
-  import redongo_client
-  redongo_client.set_application_settings(application_name, mongo_host, mongo_port, mongo_collection, mongo_user, mongo_password)
-  redongo_client.save_to_mongo(application_name, objects_to_save)
+    import redongo_client
+    redongo_client.set_application_settings(application_name, mongo_host, mongo_port, mongo_collection, mongo_user, mongo_password)
+    redongo_client.save_to_mongo(application_name, objects_to_save)
 
 ==========
 Motivation
