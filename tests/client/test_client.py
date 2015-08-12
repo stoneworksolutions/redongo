@@ -1,4 +1,5 @@
 import pytest
+import redis
 from redongo import redongo_client
 from redongo import client_exceptions
 
@@ -6,7 +7,7 @@ APPNAME = 'testApp'
 APPNAME2 = 'testApp2'
 APPNAME3 = 'testApp3'
 APPNAME_FAKE = 'testAppFake'
-REDIS_HOST = 'dev-redis'
+REDIS_HOST = 'localhost'
 REDIS_DB = 0
 REDIS_QUEUE = 'REDONGO_TEST__QUEUE'
 MONGO_HOST = 'localhost'
@@ -20,9 +21,9 @@ test_redongo = None
 
 class TestClient:
 
-    # def test__RedongoClient__NoOK1(self):
-    #     with pytest.raises(client_exceptions.Client_NoQueueParameter):
-    #         test_redongo.RedongoClient('192.168.33.33', 0, REDIS_QUEUE)
+    def test__RedongoClient__NoOK1(self):
+        with pytest.raises(redis.ConnectionError):
+            redongo_client.RedongoClient('192.168.33.33', 0, REDIS_QUEUE)
 
     def test__RedongoClient__NoOK2(self):
         with pytest.raises(client_exceptions.Client_NoQueueParameter):

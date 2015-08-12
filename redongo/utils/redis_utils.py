@@ -10,10 +10,7 @@ def multi_lpop(redis, queue, number):
 
 
 def get_redis_connection(redis_host, redis_db, redis_port=6379):
-    r = redis.Redis(redis_host, db=redis_db, port=redis_port)
-    try:
-        if not r.ping():
-            raise Exception('No redis ping')
-    except:
-        raise Exception('No Redis')
+    r = redis.Redis(redis_host, db=redis_db, port=redis_port, socket_connect_timeout=5)
+    if not r.ping():
+        raise redis.ConnectionError
     return r
