@@ -44,7 +44,7 @@ class RedongoClient():
     def remove_application_settings(self, application_name):
         if not application_name:
             raise client_exceptions.Register_NoApplicationName('Can\'t remove application settings: No application name')
-        self.redis.delete(application_name)
+        self.redis.delete('redongo_{0}'.format(application_name))
 
     def serialize_django_object(self, obj):
         fields = set()

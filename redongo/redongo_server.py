@@ -3,10 +3,12 @@ import logging
 import logging.handlers
 import os
 import pymongo
+import redis
 import server_exceptions
 import signal
 import sys
 import time
+import traceback
 import ujson
 from utils import redis_utils
 from utils import cipher_utils
@@ -94,11 +96,21 @@ class RedongoServer(object):
         except ValueError:
             raise server_exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
 
+    def save_to_failed_queue(self, application_name, bulk):
+        i = 0
+        for obj in bulk['data']:
+            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), ujson.dumps([application_name, obj]))
+            i += 1
+        logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
+
     def run(self):
         try:
             logger.debug('Running!')
             while self.keep_going:
-                self.objs.append(self.redis.blpop(self.redisQueue)[1])
+                try:
+                    self.objs.append(self.redis.blpop(self.redisQueue)[1])
+                except redis.TimeoutError:
+                    continue
                 self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
                 while self.busy:
                     time.sleep(0.1)
@@ -117,6 +129,7 @@ class RedongoServer(object):
                     application_bulk['data'].append(obj[1])
                 self.busy = False
         except:
+            logger.error('Stopping redongo because unexpected exception: {0}'.format(traceback.format_exc()))
             stopApp()
 
     def back_to_redis(self):
@@ -134,8 +147,14 @@ class RedongoServer(object):
         collection = mongo_db[bulk['mongo_collection']]
         return collection
 
-    def save_to_mongo(self, bulk):
-        collection = self.get_mongo_collection(bulk)
+    def save_to_mongo(self, application_name, bulk):
+        try:
+            collection = self.get_mongo_collection(bulk)
+        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError), e:
+            logger.error('Not saving {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
+            self.save_to_failed_queue(application_name, bulk)
+            return
+
         try:
             collection.insert(bulk['data'])
         except DuplicateKeyError:
@@ -157,7 +176,7 @@ class RedongoServer(object):
                 applications_to_delete = []
                 for application_name, bulk in self.bulks.iteritems():
                     if len(bulk['data']) >= bulk['bulk_size'] or bulk['inserted_date'] + datetime.timedelta(seconds=bulk['bulk_expiration']) <= datetime.datetime.utcnow():
-                        self.save_to_mongo(bulk)
+                        self.save_to_mongo(application_name, bulk)
                         applications_to_delete.append(application_name)
                         pass
                 for app_to_delete in applications_to_delete:
@@ -170,9 +189,10 @@ class RedongoServer(object):
 def sigtermHandler():
     global rs
     rs.keep_going = False
+    logger.debug('Waiting 10 seconds before returning data to Redis')
+    time.sleep(10)
     rs.back_to_redis()
     logger.debug('Exiting program!')
-    os._exit(0)
 
 
 def stopApp():
@@ -190,6 +210,7 @@ def main():
     signal.signal(signal.SIGHUP, closeApp)
     signal.signal(signal.SIGTERM, closeApp)
     signal.signal(signal.SIGINT, closeApp)
+    signal.signal(signal.SIGALRM, closeApp)
 
     # Handler for SIGTERM
     reactor.addSystemEventTrigger('before', 'shutdown', sigtermHandler)
