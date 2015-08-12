@@ -1,5 +1,5 @@
 *******
-REDONGO
+redongo
 *******
 
 .. image:: https://travis-ci.org/stoneworksolutions/redongo.svg?branch=master
@@ -39,7 +39,18 @@ Needed a solution that allows to enqueue bulk saves to mongo
 Installation
 ============
 
-pip install redongo
+
+Using PIP
+
+.. code:: bash
+
+    $ pip install redongo
+
+Downloading tar
+
+.. code:: bash
+
+    $ python setup.py install
 
 =============
 API Reference
@@ -51,7 +62,9 @@ WIP
 Tests
 =====
 
-WIP
+.. code:: bash
+
+    $ py.test -v
 
 ============
 Contributors
