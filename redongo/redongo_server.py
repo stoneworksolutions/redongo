@@ -140,7 +140,7 @@ class RedongoServer(object):
         self.redis.rpush('LOG', 'save_to_mongo start {0}'.format(application_name))
         try:
             collection = self.get_mongo_collection(bulk)
-        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError), e:
+        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
             logger.error('Not saving {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
             self.redis.rpush('LOG', 'save_to_mongo failed {0} - {1}'.format(application_name, e))
             self.save_to_failed_queue(application_name, bulk)
@@ -160,7 +160,9 @@ class RedongoServer(object):
                 except:
                     bulk['data'].append(obj)
                     raise
-        except:
+        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
+            logger.error('Not saving {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
+            self.save_to_failed_queue(application_name, bulk)
             self.redis.rpush('LOG', 'save_to_mongo failed {0}'.format(traceback.format_exc()))
 
     def check_completed_bulks(self):
