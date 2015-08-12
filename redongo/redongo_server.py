@@ -82,11 +82,15 @@ class RedongoServer(object):
             raise server_exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
 
     def save_to_failed_queue(self, application_name, bulk):
+        self.redis.rpush('LOG', 'save_to_failed_queue start {0} {1}'.format(application_name, bulk))
         i = 0
         for obj in bulk['data']:
+            self.redis.rpush('LOG', 'for obj in bulk 0')
             self.redis.rpush('{0}_FAILED'.format(self.redisQueue), ujson.dumps([application_name, obj]))
+            self.redis.rpush('LOG', 'for obj in bulk 1')
             i += 1
         logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
+        self.redis.rpush('LOG', 'Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
 
     def run(self):
         try:
@@ -133,15 +137,18 @@ class RedongoServer(object):
         return collection
 
     def save_to_mongo(self, application_name, bulk):
+        self.redis.rpush('LOG', 'save_to_mongo start {0}'.format(application_name))
         try:
             collection = self.get_mongo_collection(bulk)
         except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError), e:
             logger.error('Not saving {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
+            self.redis.rpush('LOG', 'save_to_mongo failed {0} - {1}'.format(application_name, e))
             self.save_to_failed_queue(application_name, bulk)
             return
-
+        self.redis.rpush('LOG', 'save_to_mongo connected {0}'.format(application_name))
         try:
             collection.insert(bulk['data'])
+            self.redis.rpush('LOG', 'save_to_mongo inserted {0}'.format(application_name))
         except DuplicateKeyError:
             while bulk['data']:
                 try:
