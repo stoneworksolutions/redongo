@@ -1,4 +1,4 @@
-class InvalidClass(Exception):
+class Save_InvalidClass(Exception):
     def __init__(self, value):
         self.parameter = value
 
@@ -6,7 +6,7 @@ class InvalidClass(Exception):
         return repr(self.parameter)
 
 
-class InexistentAppSettings(Exception):
+class Save_InexistentAppSettings(Exception):
     def __init__(self, value):
         self.parameter = value
 
@@ -14,7 +14,23 @@ class InexistentAppSettings(Exception):
         return repr(self.parameter)
 
 
-class NoQueueParameter(Exception):
+class Client_NoQueueParameter(Exception):
+    def __init__(self, value):
+        self.parameter = value
+
+    def __str__(self):
+        return repr(self.parameter)
+
+
+class Register_NoApplicationName(Exception):
+    def __init__(self, value):
+        self.parameter = value
+
+    def __str__(self):
+        return repr(self.parameter)
+
+
+class Register_NoAttributeReceived(Exception):
     def __init__(self, value):
         self.parameter = value
 

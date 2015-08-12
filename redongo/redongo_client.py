@@ -11,7 +11,7 @@ class RedongoClient():
         if redis_queue:
             self.redis_queue = redis_queue
         else:
-            raise client_exceptions.NoQueueParameter('Not valid queue received: {0}'.format(redis_queue))
+            raise client_exceptions.Client_NoQueueParameter('Not valid queue received: {0}'.format(redis_queue))
 
     def set_application_settings(self, application_name, mongo_host, mongo_port, mongo_database, mongo_collection, mongo_user, mongo_password, bulk_size=100, bulk_expiration=60):
 
@@ -23,7 +23,7 @@ class RedongoClient():
             return result
 
         if not application_name:
-            raise Exception('Can\'t set application settings: No application name')
+            raise client_exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
         app_data = {}
         app_data['mongo_host'] = mongo_host
         app_data['mongo_port'] = mongo_port if mongo_port else 27017
@@ -37,13 +37,13 @@ class RedongoClient():
 
         for key, value in app_data.iteritems():
             if not value:
-                raise Exception('Can\'t set application {1} settings: No value set for {0}'.format(key, application_name))
+                raise client_exceptions.Register_NoAttributeReceived('Can\'t set application {1} settings: No value set for {0}'.format(key, application_name))
 
         self.redis.set('redongo_{0}'.format(application_name), ujson.dumps(app_data))
 
     def remove_application_settings(self, application_name):
         if not application_name:
-            raise Exception('Can\'t remove application settings: No application name')
+            raise client_exceptions.Register_NoApplicationName('Can\'t remove application settings: No application name')
         self.redis.delete(application_name)
 
     def serialize_django_object(self, obj):
@@ -72,7 +72,7 @@ class RedongoClient():
 
     def save_to_mongo(self, application_name, objects_to_save):
         if not self.redis.exists('redongo_{0}'.format(application_name)):
-            raise client_exceptions.InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
+            raise client_exceptions.Save_InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
         if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == dict:
             objects_to_save = [objects_to_save]
         final_objects_to_save = []
@@ -85,6 +85,6 @@ class RedongoClient():
                     valid = False
 
             if not valid:
-                raise client_exceptions.InvalidClass('Saving invalid class')
+                raise client_exceptions.Save_InvalidClass('Saving invalid class')
             final_objects_to_save.append(obj)
         self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))

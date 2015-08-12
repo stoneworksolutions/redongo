@@ -16,4 +16,4 @@ before_script:
   - mongo mydb_test --eval 'db.addUser("test", "test123");'
 
 script:
-  - py.test
+  - py.test -v
