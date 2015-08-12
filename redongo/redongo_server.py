@@ -33,19 +33,9 @@ logger.setLevel(logging.DEBUG)
 
 required_options = ['REDIS', 'REDIS_DB', 'REDIS_QUEUE']
 
-parser = OptionParser(description='Startup options')
-parser.add_option('--redis', '-r', dest='redisIP', help='Redis server IP Address', metavar='REDIS')
-parser.add_option('--redisdb', '-d', dest='redisDB', help='Redis server DB', metavar='REDIS_DB')
-parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
-parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
-(options, args) = parser.parse_args()
-
-for required_option in filter(lambda x: x.__dict__['metavar'] in required_options, parser.option_list):
-    if not getattr(options, required_option.dest):
-        logger.error('Option {0} not found'.format(required_option.metavar))
-        sys.exit(-1)
-
 rs = None
+options = None
+args = None
 
 
 class RedongoServer(object):
@@ -207,6 +197,21 @@ def closeApp(signum, frame):
 
 def main():
     global rs
+    global options
+    global args
+
+    parser = OptionParser(description='Startup options')
+    parser.add_option('--redis', '-r', dest='redisIP', help='Redis server IP Address', metavar='REDIS')
+    parser.add_option('--redisdb', '-d', dest='redisDB', help='Redis server DB', metavar='REDIS_DB')
+    parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
+    parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
+    (options, args) = parser.parse_args()
+
+    for required_option in filter(lambda x: x.__dict__['metavar'] in required_options, parser.option_list):
+        if not getattr(options, required_option.dest):
+            logger.error('Option {0} not found'.format(required_option.metavar))
+            sys.exit(-1)
+
     signal.signal(signal.SIGHUP, closeApp)
     signal.signal(signal.SIGTERM, closeApp)
     signal.signal(signal.SIGINT, closeApp)
