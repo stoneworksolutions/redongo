@@ -160,6 +160,8 @@ class RedongoServer(object):
                 except:
                     bulk['data'].append(obj)
                     raise
+        except:
+            self.redis.rpush('LOG', 'save_to_mongo failed {0}'.format(application_name, traceback.format_exc()))
 
     def check_completed_bulks(self):
         try:
