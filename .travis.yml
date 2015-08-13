@@ -8,8 +8,8 @@ install:
   - python setup.py install
   - pip install pep8
   - pip install pyflakes
-before_script:
   - pip install -r requirements.txt
+before_script:
   - pep8 --exclude=migrations --ignore=E501,E225,E226 redongo
   - pyflakes redongo
 before_script:
