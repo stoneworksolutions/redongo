@@ -5,12 +5,12 @@ DIRS_EXCLUDED = ['dist', 'build', 'docs', 'tests']
 setup(
   name = 'redongo',
   packages = find_packages(exclude=DIRS_EXCLUDED),
-  version = '0.1.5',
+  version = '0.1.6',
   description = 'Gets stuff from a Redis queue and inserts it in Mongo',
   author = 'StoneWork Solutions',
   author_email = 'dev@stoneworksolutions.net',
   url = 'https://github.com/stoneworksolutions/redongo',
-  download_url = 'https://github.com/stoneworksolutions/redongo/tarball/0.1.5',
+  download_url = 'https://github.com/stoneworksolutions/redongo/tarball/0.1.6',
   keywords = ['redis', 'mongo', 'bulks'], # arbitrary keywords
   classifiers = [],
   install_requires = [

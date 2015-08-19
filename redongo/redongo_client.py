@@ -87,4 +87,5 @@ class RedongoClient():
             if not valid:
                 raise client_exceptions.Save_InvalidClass('Saving invalid class')
             final_objects_to_save.append(obj)
-        self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))
+        if final_objects_to_save:
+            self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))
