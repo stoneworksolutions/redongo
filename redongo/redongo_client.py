@@ -70,6 +70,35 @@ class RedongoClient():
                 break
         return django_object
 
+    def is_object(self, obj):
+        # if issubclass(type(obj), models.Model)
+        obj_class = type(obj)
+        django_object = False
+        while obj_class.__bases__:
+            obj_class = obj_class.__bases__[0]
+            if obj_class.__module__ == 'django.db.models.base' and obj_class.__name__ == 'Model':
+                django_object = True
+                break
+        return django_object
+
+    def serialize_object(self, obj):
+        if type(obj) == dict:
+            return obj
+        elif type(obj) == str:
+            try:
+                return ujson.loads(obj)
+            except (ValueError, TypeError):
+                pass
+        elif self.is_django_object(obj):
+            return self.serialize_django_object(obj)
+        else:
+            try:
+                return obj.__dict__
+            except AttributeError:
+                pass
+
+        raise client_exceptions.Save_InvalidClass('Saving invalid type')
+
     def save_to_mongo(self, application_name, objects_to_save):
         if not self.redis.exists('redongo_{0}'.format(application_name)):
             raise client_exceptions.Save_InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
@@ -77,15 +106,7 @@ class RedongoClient():
             objects_to_save = [objects_to_save]
         final_objects_to_save = []
         for obj in objects_to_save:
-            valid = True
-            if type(obj) != dict:
-                if self.is_django_object(obj):
-                    obj = self.serialize_django_object(obj)
-                else:
-                    valid = False
-
-            if not valid:
-                raise client_exceptions.Save_InvalidClass('Saving invalid class')
+            obj = self.serialize_object(obj)
             final_objects_to_save.append(obj)
         if final_objects_to_save:
             self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))
