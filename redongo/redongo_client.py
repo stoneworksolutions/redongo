@@ -95,7 +95,6 @@ class RedongoClient():
 
     def serialize_object(self, obj):
         obj = self.serialize_object_by_type(obj)
-        print obj
         if obj.get('_id', None):
             if type(obj['_id']) is ObjectId:
                 obj['_id'] = str(obj['_id'])
