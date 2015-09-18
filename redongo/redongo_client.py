@@ -49,6 +49,8 @@ class RedongoClient():
     def serialize_django_object(self, obj):
         fields = set()
         excluded_fields = set(['_id'])
+        if not getattr(obj, '_id', None):
+            obj._id = obj.pk
         for field in obj._meta.fields:
             fields.add(field.column)
         fields_to_delete = set()
@@ -60,18 +62,6 @@ class RedongoClient():
         return obj.__dict__
 
     def is_django_object(self, obj):
-        # if issubclass(type(obj), models.Model)
-        obj_class = type(obj)
-        django_object = False
-        while obj_class.__bases__:
-            obj_class = obj_class.__bases__[0]
-            if obj_class.__module__ == 'django.db.models.base' and obj_class.__name__ == 'Model':
-                django_object = True
-                break
-        return django_object
-
-    def is_object(self, obj):
-        # if issubclass(type(obj), models.Model)
         obj_class = type(obj)
         django_object = False
         while obj_class.__bases__:

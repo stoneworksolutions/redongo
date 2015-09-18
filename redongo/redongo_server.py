@@ -17,6 +17,12 @@ from pymongo.errors import DuplicateKeyError
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 
+try:
+    from bson.objectid import ObjectId
+    from bson.errors import InvalidId
+except ImportError:
+    from pymongo.objectid import ObjectId, InvalidId
+
 # LOGGER CONFIG
 FACILITY = "local0"
 logging.basicConfig()
@@ -111,7 +117,7 @@ class RedongoServer(object):
                     application_bulk = self.bulks.setdefault(obj[0], {'data': []})
                     application_bulk.setdefault('inserted_date', datetime.datetime.utcnow())
                     application_bulk.update(application_settings)
-                    application_bulk['data'].append(obj[1])
+                    application_bulk['data'].append(self.normalize_object(obj[1]))
                 self.busy = False
         except:
             logger.error('Stopping redongo because unexpected exception: {0}'.format(traceback.format_exc()))
@@ -122,7 +128,7 @@ class RedongoServer(object):
         objects_returned = 0
         for application_name, bulk in self.bulks.iteritems():
             for obj in bulk['data']:
-                self.redis.rpush(self.redisQueue, ujson.dumps([application_name, obj]))
+                self.redis.rpush(self.redisQueue, ujson.dumps([application_name, self.serialize_object(obj)]))
                 objects_returned += 1
         logger.debug('{0} objects returned to Redis'.format(objects_returned))
 
@@ -131,6 +137,19 @@ class RedongoServer(object):
         mongo_db = mongo_client[bulk['mongo_database']]
         collection = mongo_db[bulk['mongo_collection']]
         return collection
+
+    def normalize_object(self, obj):
+        if obj.get('_id', None):
+            try:
+                obj['_id'] = ObjectId(obj['_id'])
+            except InvalidId:
+                pass
+        return obj
+
+    def serialize_object(self, obj):
+        if obj.get('_id', None):
+            obj['_id'] = str(obj['_id'])
+        return obj
 
     def save_to_mongo(self, application_name, bulk):
         try:
