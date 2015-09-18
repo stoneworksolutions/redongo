@@ -3,6 +3,10 @@ from utils import redis_utils
 from utils import cipher_utils
 import client_exceptions
 import ujson
+try:
+    from bson.objectid import ObjectId
+except ImportError:
+    from pymongo.objectid import ObjectId
 
 
 class RedongoClient():
@@ -71,7 +75,7 @@ class RedongoClient():
                 break
         return django_object
 
-    def serialize_object(self, obj):
+    def serialize_object_by_type(self, obj):
         if type(obj) == dict:
             return obj
         elif type(obj) == str:
@@ -88,6 +92,14 @@ class RedongoClient():
                 pass
 
         raise client_exceptions.Save_InvalidClass('Saving invalid type')
+
+    def serialize_object(self, obj):
+        obj = self.serialize_object_by_type(obj)
+        print obj
+        if obj.get('_id', None):
+            if type(obj['_id']) is ObjectId:
+                obj['_id'] = str(obj['_id'])
+        return obj
 
     def save_to_mongo(self, application_name, objects_to_save):
         if not self.redis.exists('redongo_{0}'.format(application_name)):
