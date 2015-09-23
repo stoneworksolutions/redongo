@@ -5,11 +5,13 @@ import os
 import pymongo
 import redis
 import server_exceptions
+import exceptions
 import signal
 import sys
 import time
 import traceback
 import ujson
+from utils import utils
 from utils import redis_utils
 from utils import cipher_utils
 from optparse import OptionParser
@@ -63,29 +65,7 @@ class RedongoServer(object):
             raise server_exceptions.ObjectValidationError('Type not valid')
 
     def get_application_settings(self, application_name):
-        # TODO: Add settings validation
-        try:
-            application_settings = ujson.loads(self.redis.get('redongo_{0}'.format(application_name)))
-            fields_to_validate = [
-                'mongo_host',
-                'mongo_port',
-                'mongo_database',
-                'mongo_collection',
-                'mongo_user',
-                'mongo_password',
-                'bulk_size',
-                'bulk_expiration',
-            ]
-
-            for f in fields_to_validate:
-                if not application_settings.get(f, None):
-                    raise server_exceptions.ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
-
-            return application_settings
-        except TypeError:
-            raise server_exceptions.ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
-        except ValueError:
-            raise server_exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
+        return utils.get_application_settings(application_name, self.redis)
 
     def save_to_failed_queue(self, application_name, bulk):
         i = 0
@@ -111,7 +91,7 @@ class RedongoServer(object):
                     try:
                         self.check_object(obj)
                         application_settings = self.get_application_settings(obj[0])
-                    except (server_exceptions.ObjectValidationError, server_exceptions.ApplicationSettingsError), e:
+                    except (server_exceptions.ObjectValidationError, exceptions.ApplicationSettingsError), e:
                         logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
                         continue
                     application_bulk = self.bulks.setdefault(obj[0], {'data': []})
@@ -144,11 +124,14 @@ class RedongoServer(object):
                 obj['_id'] = ObjectId(obj['_id'])
             except InvalidId:
                 pass
+            except TypeError:
+                pass
         return obj
 
     def serialize_object(self, obj):
         if obj.get('_id', None):
-            obj['_id'] = str(obj['_id'])
+            if type(obj['_id']) is ObjectId:
+                obj['_id'] = str(obj['_id'])
         return obj
 
     def save_to_mongo(self, application_name, bulk):
