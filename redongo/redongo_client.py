@@ -5,7 +5,10 @@ from utils import cipher_utils
 from utils import serializer_utils
 import client_exceptions
 import exceptions
-import ujson
+try:
+    import ujson as json
+except:
+    import json
 try:
     from bson.objectid import ObjectId
 except ImportError:
@@ -95,7 +98,7 @@ class RedongoClient():
             return obj
         elif type(obj) == str:
             try:
-                return ujson.loads(obj)
+                return json.loads(obj)
             except (ValueError, TypeError):
                 pass
         elif self.is_django_object(obj):
