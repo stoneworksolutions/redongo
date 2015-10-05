@@ -4,7 +4,7 @@ from utils import redis_utils
 from utils import cipher_utils
 from utils import serializer_utils
 import client_exceptions
-import exceptions
+import general_exceptions
 try:
     import ujson as json
 except:
@@ -39,9 +39,9 @@ class RedongoClient():
             return result
 
         if not application_name:
-            raise exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
+            raise general_exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
         if serializer_type not in self.serializer_types:
-            raise exceptions.Register_NoValidSerializer('Can\'t set application settings: No valid serializer')
+            raise general_exceptions.Register_NoValidSerializer('Can\'t set application settings: No valid serializer')
         app_data = {}
         app_data['mongo_host'] = mongo_host
         app_data['mongo_port'] = mongo_port if mongo_port else 27017
@@ -65,7 +65,7 @@ class RedongoClient():
 
     def remove_application_settings(self, application_name):
         if not application_name:
-            raise exceptions.Register_NoApplicationName('Can\'t remove application settings: No application name')
+            raise general_exceptions.Register_NoApplicationName('Can\'t remove application settings: No application name')
         self.redis.delete('redongo_{0}'.format(application_name))
 
     def serialize_django_object(self, obj):

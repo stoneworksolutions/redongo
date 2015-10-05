@@ -1,7 +1,7 @@
 import pytest
 import redis
 from redongo import redongo_client
-from redongo import client_exceptions, exceptions
+from redongo import client_exceptions, general_exceptions
 try:
     from bson.objectid import ObjectId
 except ImportError:
@@ -82,7 +82,7 @@ class TestClient:
 
     def test__set_application_settings__NoOK7(self):
         global test_redongo
-        with pytest.raises(exceptions.Register_NoApplicationName):
+        with pytest.raises(general_exceptions.Register_NoApplicationName):
             test_redongo.set_application_settings('', MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__OK1(self):
@@ -169,7 +169,7 @@ class TestClient:
 
     def test__remove_application_settings__NoOK(self):
         global test_redongo
-        with pytest.raises(exceptions.Register_NoApplicationName):
+        with pytest.raises(general_exceptions.Register_NoApplicationName):
             test_redongo.remove_application_settings(None)
 
     def test__remove_application_settings__OK(self):
@@ -182,17 +182,17 @@ class TestClient:
 
     def test__get_application_settings__NoOK1(self):
         global test_redongo
-        with pytest.raises(exceptions.Register_NoApplicationName):
+        with pytest.raises(general_exceptions.Register_NoApplicationName):
             test_redongo.get_application_settings(None)
 
     def test__get_application_settings__NoOK2(self):
         global test_redongo
-        with pytest.raises(exceptions.Register_NoApplicationName):
+        with pytest.raises(general_exceptions.Register_NoApplicationName):
             test_redongo.get_application_settings('')
 
     def test__get_application_settings__NoOK3(self):
         global test_redongo
-        with pytest.raises(exceptions.ApplicationSettingsError):
+        with pytest.raises(general_exceptions.ApplicationSettingsError):
             test_redongo.get_application_settings(APPNAME3)
 
     def test__results_assert(self):

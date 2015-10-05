@@ -1,4 +1,4 @@
-from redongo import exceptions
+from redongo import general_exceptions
 try:
     import cPcikle as pickle
 except:
@@ -8,7 +8,7 @@ except:
 def get_application_settings(application_name, redis):
         # TODO: Add settings validation
         if not application_name:
-            raise exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
+            raise general_exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
         try:
             application_settings = pickle.loads(redis.get('redongo_{0}'.format(application_name)))
             fields_to_validate = [
@@ -25,10 +25,10 @@ def get_application_settings(application_name, redis):
 
             for f in fields_to_validate:
                 if not application_settings.get(f, None):
-                    raise exceptions.ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
+                    raise general_exceptions.ApplicationSettingsError('No {0} value in {1} application settings'.format(f, application_name))
 
             return application_settings
         except TypeError:
-            raise exceptions.ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
+            raise general_exceptions.ApplicationSettingsError('Not existing conf for application {0}'.format(application_name))
         except ValueError:
-            raise exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))
+            raise general_exceptions.ApplicationSettingsError('Invalid existing conf for application {0}'.format(application_name))

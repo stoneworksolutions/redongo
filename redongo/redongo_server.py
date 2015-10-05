@@ -5,7 +5,7 @@ import os
 import pymongo
 import redis
 import server_exceptions
-import exceptions
+import general_exceptions
 import signal
 import sys
 import time
@@ -98,7 +98,7 @@ class RedongoServer(object):
                     try:
                         self.check_object(obj)
                         application_settings = self.get_application_settings(obj[0][0])
-                    except (server_exceptions.ObjectValidationError, exceptions.ApplicationSettingsError), e:
+                    except (server_exceptions.ObjectValidationError, general_exceptions.ApplicationSettingsError), e:
                         logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
                         continue
                     application_bulk = self.bulks.setdefault(obj[0], {'data': []})
