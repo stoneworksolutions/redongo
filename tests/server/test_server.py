@@ -41,5 +41,5 @@ class TestServer:
         assert r.llen(REDIS_QUEUE) == 0
         assert r.llen(REDIS_QUEUE_FAILED) == 1
         mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(MONGO_USER, MONGO_PASSWORD, MONGO_HOST, MONGO_DB))
-        assert mongo_client[MONGO_DB][MONGO_COLLECTION].count() == 5
+        assert mongo_client[MONGO_DB][MONGO_COLLECTION].count() == 8
         assert mongo_client[MONGO_DB][MONGO_COLLECTION].find({"test": 5}).count() == 3

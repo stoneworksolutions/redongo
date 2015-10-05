@@ -11,6 +11,9 @@ APPNAME = 'testApp'
 APPNAME2 = 'testApp2'
 APPNAME3 = 'testApp3'
 APPNAME_FAKE = 'testAppFake'
+APPNAME_JSON = 'testAppJson'
+APPNAME_UJSON = 'testAppuJson'
+APPNAME_PICKLE = 'testAppPickle'
 REDIS_HOST = 'localhost'
 REDIS_DB = 0
 REDIS_QUEUE = 'REDONGO_TEST_QUEUE'
@@ -20,6 +23,9 @@ MONGO_DB = 'mydb_test'
 MONGO_COLLECTION = 'mycollection_test'
 MONGO_USER = 'test'
 MONGO_PASSWORD = 'test123'
+SERIALIZER_JSON = 'json'
+SERIALIZER_UJSON = 'ujson'
+SERIALIZER_PICKLE = 'pickle'
 test_redongo = None
 
 # uncomment on our environment
@@ -47,95 +53,119 @@ class TestClient:
     def test__set_application_settings__NoOK1(self):
         global test_redongo
         with pytest.raises(client_exceptions.Register_NoAttributeReceived):
-            test_redongo.set_application_settings(APPNAME_FAKE, None, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD)
+            test_redongo.set_application_settings(APPNAME_FAKE, None, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__NoOK2(self):
         global test_redongo
         with pytest.raises(client_exceptions.Register_NoAttributeReceived):
-            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, None, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD)
+            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, None, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__NoOK3(self):
         global test_redongo
         with pytest.raises(client_exceptions.Register_NoAttributeReceived):
-            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, None, MONGO_USER, MONGO_PASSWORD)
+            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, None, MONGO_USER, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__NoOK4(self):
         global test_redongo
         with pytest.raises(client_exceptions.Register_NoAttributeReceived):
-            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, None, MONGO_PASSWORD)
+            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, None, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__NoOK5(self):
         global test_redongo
         with pytest.raises(client_exceptions.Register_NoAttributeReceived):
-            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=None)
+            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=None, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__NoOK6(self):
         global test_redongo
         with pytest.raises(client_exceptions.Register_NoAttributeReceived):
-            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=100, bulk_expiration=None)
+            test_redongo.set_application_settings(APPNAME_FAKE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=100, bulk_expiration=None, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__NoOK7(self):
         global test_redongo
         with pytest.raises(exceptions.Register_NoApplicationName):
-            test_redongo.set_application_settings('', MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD)
+            test_redongo.set_application_settings('', MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__OK1(self):
         global test_redongo
-        test_redongo.set_application_settings(APPNAME, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=2)
+        test_redongo.set_application_settings(APPNAME, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=2, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__OK2(self):
         global test_redongo
-        test_redongo.set_application_settings(APPNAME2, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, '123', bulk_size=1)
+        test_redongo.set_application_settings(APPNAME2, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, '123', bulk_size=1, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__OK3(self):
         global test_redongo
-        test_redongo.set_application_settings(APPNAME3, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD)
+        test_redongo.set_application_settings(APPNAME3, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, serializer_type=SERIALIZER_JSON)
+
+    def test__set_application_settings__OK4(self):
+        global test_redongo
+        test_redongo.set_application_settings(APPNAME_JSON, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=1, serializer_type=SERIALIZER_JSON)
+
+    def test__set_application_settings__OK5(self):
+        global test_redongo
+        test_redongo.set_application_settings(APPNAME_UJSON, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=1, serializer_type=SERIALIZER_UJSON)
+
+    def test__set_application_settings__OK6(self):
+        global test_redongo
+        test_redongo.set_application_settings(APPNAME_PICKLE, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=1, serializer_type=SERIALIZER_PICKLE)
 
     def test__save_to_mongo__NoOK1(self):
         global test_redongo
         with pytest.raises(client_exceptions.Save_InexistentAppSettings):
-            test_redongo.save_to_mongo(APPNAME_FAKE, [{'test': 1}])
+            test_redongo.save_to_mongo(APPNAME_FAKE, [{'test': 1}], SERIALIZER_JSON)
 
     def test__save_to_mongo__NoOK2(self):
         global test_redongo
         with pytest.raises(client_exceptions.Save_InvalidClass):
-            test_redongo.save_to_mongo(APPNAME, ['test'])
+            test_redongo.save_to_mongo(APPNAME, ['test'], SERIALIZER_JSON)
 
     def test__save_to_mongo__OK1(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, [{'test': 1}])
+        test_redongo.save_to_mongo(APPNAME, [{'test': 1}], SERIALIZER_JSON)
 
     def test__save_to_mongo__OK2(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'test': 2})
+        test_redongo.save_to_mongo(APPNAME, {'test': 2}, SERIALIZER_JSON)
 
     def test__save_to_mongo__OK3(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME2, {'test': 3})
+        test_redongo.save_to_mongo(APPNAME2, {'test': 3}, SERIALIZER_JSON)
 
     def test__save_to_mongo__OK4(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 4})
+        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 4}, SERIALIZER_JSON)
 
     def test__save_to_mongo__OK5(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 4})
+        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 4}, SERIALIZER_JSON)
 
     def test__save_to_mongo__OK6(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 4})
+        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 4}, SERIALIZER_JSON)
+
+    def test__save_to_mongo__OK7(self):
+        global test_redongo
+        test_redongo.save_to_mongo(APPNAME_JSON, {'test': 'json'}, SERIALIZER_JSON)
+
+    def test__save_to_mongo__OK8(self):
+        global test_redongo
+        test_redongo.save_to_mongo(APPNAME_UJSON, {'test': 'ujson'}, SERIALIZER_UJSON)
+
+    def test__save_to_mongo__OK9(self):
+        global test_redongo
+        test_redongo.save_to_mongo(APPNAME_PICKLE, {'test': 'pickle'}, SERIALIZER_PICKLE)
 
     def test__update_to_mongo__OK1(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 5})
+        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 5}, SERIALIZER_JSON)
 
     def test__update_to_mongo__OK2(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 5})
+        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 5}, SERIALIZER_JSON)
 
     def test__update_to_mongo__OK3(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 5})
+        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 5}, SERIALIZER_JSON)
 
     def test__remove_application_settings__NoOK(self):
         global test_redongo
@@ -168,6 +198,6 @@ class TestClient:
     def test__results_assert(self):
         r = redis.Redis(REDIS_HOST, db=REDIS_DB)
         # 2 app settings + redongo_sk
-        assert len(r.keys('redongo*')) == 3
+        assert len(r.keys('redongo*')) == 6
         # 3 elements in queue
-        assert r.llen(REDIS_QUEUE) == 9
+        assert r.llen(REDIS_QUEUE) == 12

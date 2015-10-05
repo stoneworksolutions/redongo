@@ -1,5 +1,8 @@
 from redongo import exceptions
-import ujson
+try:
+    import cPcikle as pickle
+except:
+    import pickle
 
 
 def get_application_settings(application_name, redis):
@@ -7,7 +10,7 @@ def get_application_settings(application_name, redis):
         if not application_name:
             raise exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
         try:
-            application_settings = ujson.loads(redis.get('redongo_{0}'.format(application_name)))
+            application_settings = pickle.loads(redis.get('redongo_{0}'.format(application_name)))
             fields_to_validate = [
                 'mongo_host',
                 'mongo_port',
@@ -17,6 +20,7 @@ def get_application_settings(application_name, redis):
                 'mongo_password',
                 'bulk_size',
                 'bulk_expiration',
+                'serializer_type',
             ]
 
             for f in fields_to_validate:

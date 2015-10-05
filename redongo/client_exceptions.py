@@ -28,3 +28,11 @@ class Register_NoAttributeReceived(Exception):
 
     def __str__(self):
         return repr(self.parameter)
+
+
+class Register_NoValidSerializer(Exception):
+    def __init__(self, value):
+        self.parameter = value
+
+    def __str__(self):
+        return repr(self.parameter)

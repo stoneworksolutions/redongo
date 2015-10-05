@@ -2,6 +2,7 @@ import os
 from utils import utils
 from utils import redis_utils
 from utils import cipher_utils
+from utils import serializer_utils
 import client_exceptions
 import exceptions
 import ujson
@@ -10,16 +11,22 @@ try:
 except ImportError:
     from pymongo.objectid import ObjectId
 
+try:
+    import cPcikle as pickle
+except:
+    import pickle
+
 
 class RedongoClient():
     def __init__(self, redis_host, redis_db, redis_queue, redis_port=6379):
+        self.serializer_types = ['json', 'ujson', 'pickle']
         self.redis = redis_utils.get_redis_connection(redis_host, redis_db=redis_db, redis_port=redis_port)
         if redis_queue:
             self.redis_queue = redis_queue
         else:
             raise client_exceptions.Client_NoQueueParameter('Not valid queue received: {0}'.format(redis_queue))
 
-    def set_application_settings(self, application_name, mongo_host, mongo_port, mongo_database, mongo_collection, mongo_user, mongo_password, bulk_size=100, bulk_expiration=60):
+    def set_application_settings(self, application_name, mongo_host, mongo_port, mongo_database, mongo_collection, mongo_user, mongo_password, bulk_size=100, bulk_expiration=60, serializer_type='pickle'):
 
         def __get_sk__():
             result = self.redis.get('redongo_sk')
@@ -30,6 +37,8 @@ class RedongoClient():
 
         if not application_name:
             raise exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
+        if serializer_type not in self.serializer_types:
+            raise exceptions.Register_NoValidSerializer('Can\'t set application settings: No valid serializer')
         app_data = {}
         app_data['mongo_host'] = mongo_host
         app_data['mongo_port'] = mongo_port if mongo_port else 27017
@@ -40,12 +49,13 @@ class RedongoClient():
         app_data['mongo_password'] = cipher.encrypt(mongo_password)
         app_data['bulk_size'] = bulk_size
         app_data['bulk_expiration'] = bulk_expiration
+        app_data['serializer_type'] = serializer_type
 
         for key, value in app_data.iteritems():
             if not value:
                 raise client_exceptions.Register_NoAttributeReceived('Can\'t set application {1} settings: No value set for {0}'.format(key, application_name))
 
-        self.redis.set('redongo_{0}'.format(application_name), ujson.dumps(app_data))
+        self.redis.set('redongo_{0}'.format(application_name), pickle.dumps(app_data))
 
     def get_application_settings(self, application_name):
         return utils.get_application_settings(application_name, self.redis)
@@ -105,9 +115,11 @@ class RedongoClient():
                 obj['_id'] = str(obj['_id'])
         return obj
 
-    def save_to_mongo(self, application_name, objects_to_save):
+    def save_to_mongo(self, application_name, objects_to_save, serializer_type):
+        application_config = {}
         if not self.redis.exists('redongo_{0}'.format(application_name)):
             raise client_exceptions.Save_InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
+        application_config = self.get_application_settings(application_name)
         if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == dict:
             objects_to_save = [objects_to_save]
         final_objects_to_save = []
@@ -115,4 +127,5 @@ class RedongoClient():
             obj = self.serialize_object(obj)
             final_objects_to_save.append(obj)
         if final_objects_to_save:
-            self.redis.rpush(self.redis_queue, *map(lambda x: ujson.dumps([application_name, x]), final_objects_to_save))
+            ser = serializer_utils.serializer(application_config['serializer_type'])
+            self.redis.rpush(self.redis_queue, *map(lambda x: pickle.dumps([(application_name, application_config['serializer_type']), ser.dumps(x)]), final_objects_to_save))
