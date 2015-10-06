@@ -10,7 +10,6 @@ import signal
 import sys
 import time
 import traceback
-import ujson
 from utils import utils
 from utils import redis_utils
 from utils import cipher_utils
@@ -117,7 +116,7 @@ class RedongoServer(object):
         objects_returned = 0
         for application_config, bulk in self.bulks.iteritems():
             for obj in bulk['data']:
-                self.redis.rpush(self.redisQueue, ujson.dumps([application_config, self.serialize_object(obj)]))
+                self.redis.rpush(self.redisQueue, pickle.dumps([application_config, self.serialize_object(obj)]))
                 objects_returned += 1
         logger.debug('{0} objects returned to Redis'.format(objects_returned))
 
