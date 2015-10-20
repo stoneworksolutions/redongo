@@ -71,7 +71,7 @@ class RedongoClient():
     def serialize_django_object(self, obj):
         fields = set()
         excluded_fields = set(['_id'])
-        if not getattr(obj, '_id', None) and  getattr(obj, 'pk', None):
+        if not getattr(obj, '_id', None) and getattr(obj, 'pk', None):
             obj._id = obj.pk
         for field in obj._meta.fields:
             fields.add(field.column)
