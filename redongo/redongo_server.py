@@ -59,7 +59,7 @@ class RedongoServer(object):
         self.redis = redis_utils.get_redis_connection(options.redisIP, redis_db=options.redisDB, redis_port=options.redisPort)
         self.keep_going = True
         self.redisQueue = options.redisQueue
-        self.popSize = options.popSize
+        self.popSize = int(options.popSize)
         self.bulks = {}
         self.objs = []
         self.busy = False
@@ -116,7 +116,7 @@ class RedongoServer(object):
         objects_returned = 0
         for application_config, bulk in self.bulks.iteritems():
             for obj in bulk['data']:
-                self.redis.rpush(self.redisQueue, pickle.dumps([application_config, self.serialize_object(obj)]))
+                self.redis.rpush(self.redisQueue, pickle.dumps([application_config, self.serialize_object(obj, application_config)]))
                 objects_returned += 1
         logger.debug('{0} objects returned to Redis'.format(objects_returned))
 
@@ -136,11 +136,12 @@ class RedongoServer(object):
                 pass
         return obj
 
-    def serialize_object(self, obj):
+    def serialize_object(self, obj, application_config):
         if obj.get('_id', None):
             if type(obj['_id']) is ObjectId:
                 obj['_id'] = str(obj['_id'])
-        return obj
+        ser = serializer_utils.serializer(application_config[1])
+        return ser.dumps(obj)
 
     def save_to_mongo(self, application_config, bulk):
         try:
