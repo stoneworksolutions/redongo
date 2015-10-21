@@ -33,6 +33,8 @@ def redirect_argv(*args):
 class TestServer:
     def test__RedongoServer__OK1(self):
         signal.alarm(10)
+        mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(MONGO_USER, MONGO_PASSWORD, MONGO_HOST, MONGO_DB))
+        mongo_client[MONGO_DB][MONGO_COLLECTION].drop()
 
         with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE), '-l', '0'):
             redongo_server.main()
@@ -40,6 +42,5 @@ class TestServer:
         r = redis.Redis(REDIS_HOST, db=REDIS_DB)
         assert r.llen(REDIS_QUEUE) == 0
         assert r.llen(REDIS_QUEUE_FAILED) == 1
-        mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(MONGO_USER, MONGO_PASSWORD, MONGO_HOST, MONGO_DB))
         assert mongo_client[MONGO_DB][MONGO_COLLECTION].count() == 8
         assert mongo_client[MONGO_DB][MONGO_COLLECTION].find({"test": 5}).count() == 3

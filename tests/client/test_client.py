@@ -38,6 +38,15 @@ OBJECTID = ObjectId()
 
 class TestClient:
 
+    def test__initialize(self):
+        r = redis.Redis(REDIS_HOST, db=REDIS_DB)
+        try:
+            r.delete(*r.keys('{0}*'.format(REDIS_QUEUE)))
+            r.delete(*r.keys('REDONGO_*'))
+            r.delete(*r.keys('redongo_*'))
+        except redis.exceptions.ResponseError:
+            pass
+
     def test__RedongoClient__NoOK1(self):
         with pytest.raises(redis.ConnectionError):
             redongo_client.RedongoClient('192.168.33.33', 0, REDIS_QUEUE)
@@ -112,60 +121,60 @@ class TestClient:
     def test__save_to_mongo__NoOK1(self):
         global test_redongo
         with pytest.raises(client_exceptions.Save_InexistentAppSettings):
-            test_redongo.save_to_mongo(APPNAME_FAKE, [{'test': 1}], SERIALIZER_JSON)
+            test_redongo.save_to_mongo(APPNAME_FAKE, [{'test': 1}])
 
     def test__save_to_mongo__NoOK2(self):
         global test_redongo
         with pytest.raises(client_exceptions.Save_InvalidClass):
-            test_redongo.save_to_mongo(APPNAME, ['test'], SERIALIZER_JSON)
+            test_redongo.save_to_mongo(APPNAME, ['test'])
 
     def test__save_to_mongo__OK1(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, [{'test': 1}], SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, [{'test': 1}])
 
     def test__save_to_mongo__OK2(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'test': 2}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'test': 2})
 
     def test__save_to_mongo__OK3(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME2, {'test': 3}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME2, {'test': 3})
 
     def test__save_to_mongo__OK4(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 4}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 4})
 
     def test__save_to_mongo__OK5(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 4}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 4})
 
     def test__save_to_mongo__OK6(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 4}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 4})
 
     def test__save_to_mongo__OK7(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME_JSON, {'test': 'json'}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME_JSON, {'test': 'json'})
 
     def test__save_to_mongo__OK8(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME_UJSON, {'test': 'ujson'}, SERIALIZER_UJSON)
+        test_redongo.save_to_mongo(APPNAME_UJSON, {'test': 'ujson'})
 
     def test__save_to_mongo__OK9(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME_PICKLE, {'test': 'pickle'}, SERIALIZER_PICKLE)
+        test_redongo.save_to_mongo(APPNAME_PICKLE, {'test': 'pickle'})
 
     def test__update_to_mongo__OK1(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 5}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'_id': '123', 'test': 5})
 
     def test__update_to_mongo__OK2(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 5}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'_id': 123, 'test': 5})
 
     def test__update_to_mongo__OK3(self):
         global test_redongo
-        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 5}, SERIALIZER_JSON)
+        test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 5})
 
     def test__remove_application_settings__NoOK(self):
         global test_redongo
