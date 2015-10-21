@@ -61,8 +61,8 @@ class RedongoServer(object):
         self.redisQueue = options.redisQueue
         self.popSize = int(options.popSize)
         self.bulks = {}
+        self.completed_bulks = set()
         self.objs = []
-        self.busy = False
         self.cipher = cipher_utils.AESCipher(__get_sk__())
 
     def check_object(self, obj):
@@ -72,41 +72,44 @@ class RedongoServer(object):
     def get_application_settings(self, application_name):
         return utils.get_application_settings(application_name, self.redis)
 
-    def save_to_failed_queue(self, application_config, bulk):
+    def save_to_failed_queue(self, application_name, bulk):
         i = 0
         for obj in bulk['data']:
-            ser = serializer_utils.serializer(application_config[1])
-            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), pickle.dumps([application_config, ser.dumps(obj)]))
+            ser = serializer_utils.serializer(bulk['serializer'])
+            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), pickle.dumps([[application_name, bulk['serializer']], ser.dumps(obj)]))
             i += 1
-        logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_config[0], self.redisQueue))
+        logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
 
     def run(self):
         try:
             logger.debug('Running!')
             while self.keep_going:
+                object_found = False
                 try:
                     self.objs.append(self.redis.blpop(self.redisQueue)[1])
+                    object_found = True
                 except redis.TimeoutError:
-                    continue
-                self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
-                while self.busy:
-                    time.sleep(0.1)
-                self.busy = True
-                while self.objs:
-                    obj = pickle.loads(self.objs.pop())
-                    try:
-                        self.check_object(obj)
-                        application_settings = self.get_application_settings(obj[0][0])
-                    except (server_exceptions.ObjectValidationError, general_exceptions.ApplicationSettingsError), e:
-                        logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
-                        continue
-                    application_bulk = self.bulks.setdefault(obj[0], {'data': []})
-                    application_bulk.setdefault('inserted_date', datetime.datetime.utcnow())
-                    application_bulk.update(application_settings)
-                    ser = serializer_utils.serializer(obj[0][1])
-                    obj_data = ser.loads(obj[1])
-                    application_bulk['data'].append(self.normalize_object(obj_data))
-                self.busy = False
+                    pass
+                if object_found:
+                    self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                    while self.objs:
+                        obj = pickle.loads(self.objs.pop())
+                        try:
+                            self.check_object(obj)
+                            application_settings = self.get_application_settings(obj[0][0])
+                        except (server_exceptions.ObjectValidationError, general_exceptions.ApplicationSettingsError), e:
+                            logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
+                            continue
+                        application_bulk = self.bulks.setdefault(obj[0][0], {'serializer': obj[0][1], 'data': []})
+                        application_bulk.setdefault('inserted_date', datetime.datetime.utcnow())
+                        application_bulk.update(application_settings)
+                        ser = serializer_utils.serializer(obj[0][1])
+                        obj_data = ser.loads(obj[1])
+                        application_bulk['data'].append(self.normalize_object(obj_data))
+
+                while self.completed_bulks:
+                    self.consume_application(self.completed_bulks.pop())
+
         except:
             logger.error('Stopping redongo because unexpected exception: {0}'.format(traceback.format_exc()))
             stopApp()
@@ -114,9 +117,9 @@ class RedongoServer(object):
     def back_to_redis(self):
         logger.debug('Returning memory data to Redis')
         objects_returned = 0
-        for application_config, bulk in self.bulks.iteritems():
+        for application_name, bulk in self.bulks.iteritems():
             for obj in bulk['data']:
-                self.redis.rpush(self.redisQueue, pickle.dumps([application_config, self.serialize_object(obj, application_config)]))
+                self.redis.rpush(self.redisQueue, pickle.dumps([[application_name, bulk['serializer']], self.serialize_object(obj, bulk['serializer'])]))
                 objects_returned += 1
         logger.debug('{0} objects returned to Redis'.format(objects_returned))
 
@@ -136,20 +139,22 @@ class RedongoServer(object):
                 pass
         return obj
 
-    def serialize_object(self, obj, application_config):
+    def serialize_object(self, obj, serializer):
         if obj.get('_id', None):
             if type(obj['_id']) is ObjectId:
                 obj['_id'] = str(obj['_id'])
-        ser = serializer_utils.serializer(application_config[1])
+        ser = serializer_utils.serializer(serializer)
         return ser.dumps(obj)
 
-    def save_to_mongo(self, application_config, bulk):
+    def save_to_mongo(self, application_name):
         try:
+            bulk = self.bulks[application_name]
             collection = self.get_mongo_collection(bulk)
         except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
-            logger.error('Not saving {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_config[0], e))
-            self.save_to_failed_queue(application_config, bulk)
+            logger.error('Not saving bulk {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
+            self.save_to_failed_queue(application_name, bulk)
             return
+
         try:
             collection.insert(bulk['data'])
         except DuplicateKeyError:
@@ -164,22 +169,20 @@ class RedongoServer(object):
                     bulk['data'].append(obj)
                     raise
         except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
-            logger.error('Not saving {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_config[0], e))
-            self.save_to_failed_queue(application_config, bulk)
+            logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
+            self.save_to_failed_queue(application_name, bulk)
+
+    def consume_application(self, application_name):
+        # In case that check_completed_bulks reads while main thread was saving on previous iteration
+        if application_name in self.bulks:
+            self.save_to_mongo(application_name)
+            self.bulks.pop(application_name)
 
     def check_completed_bulks(self):
         try:
-            if not self.busy:
-                self.busy = True
-                applications_to_delete = []
-                for application_config, bulk in self.bulks.iteritems():
-                    if len(bulk['data']) >= bulk['bulk_size'] or bulk['inserted_date'] + datetime.timedelta(seconds=bulk['bulk_expiration']) <= datetime.datetime.utcnow():
-                        self.save_to_mongo(application_config, bulk)
-                        applications_to_delete.append(application_config)
-                        pass
-                for app_to_delete in applications_to_delete:
-                    del(self.bulks[app_to_delete])
-                self.busy = False
+            for application_name, bulk in self.bulks.items():
+                if len(bulk['data']) >= bulk['bulk_size'] or bulk['inserted_date'] + datetime.timedelta(seconds=bulk['bulk_expiration']) <= datetime.datetime.utcnow():
+                    self.completed_bulks.add(application_name)
         except:
             stopApp()
 
@@ -246,7 +249,7 @@ def main():
     reactor.callInThread(rs.run)
 
     # Start the reactor
-    reactor.run()
+    reactor.run(installSignalHandlers=False)
 
 if __name__ == "__main__":
     try:

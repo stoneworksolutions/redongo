@@ -5,6 +5,7 @@ from utils import cipher_utils
 from utils import serializer_utils
 import client_exceptions
 import general_exceptions
+import warnings
 try:
     import ujson as json
 except:
@@ -15,9 +16,10 @@ except ImportError:
     from pymongo.objectid import ObjectId
 
 try:
-    import cPcikle as pickle
+    import cPickle as pickle
 except:
     import pickle
+import copy
 
 
 class RedongoClient():
@@ -50,6 +52,9 @@ class RedongoClient():
         app_data['mongo_user'] = mongo_user
         cipher = cipher_utils.AESCipher(__get_sk__())
         app_data['mongo_password'] = cipher.encrypt(mongo_password)
+        if bulk_size > 1000:
+            bulk_size = 1000
+            warnings.warn("deprecated", DeprecationWarning)
         app_data['bulk_size'] = bulk_size
         app_data['bulk_expiration'] = bulk_expiration
         app_data['serializer_type'] = serializer_type
@@ -69,19 +74,20 @@ class RedongoClient():
         self.redis.delete('redongo_{0}'.format(application_name))
 
     def serialize_django_object(self, obj):
+        copied_obj = copy.deepcopy(obj)
         fields = set()
         excluded_fields = set(['_id'])
-        if not getattr(obj, '_id', None) and getattr(obj, 'pk', None):
-            obj._id = obj.pk
-        for field in obj._meta.fields:
+        if not getattr(copied_obj, '_id', None) and getattr(copied_obj, 'pk', None):
+            copied_obj._id = copied_obj.pk
+        for field in copied_obj._meta.fields:
             fields.add(field.column)
         fields_to_delete = set()
-        for attr, value in obj.__dict__.iteritems():
+        for attr, value in copied_obj.__dict__.iteritems():
             if attr not in fields:
                 fields_to_delete.add(attr)
         for ftd in fields_to_delete-excluded_fields:
-            obj.__delattr__(ftd)
-        return obj.__dict__
+            copied_obj.__delattr__(ftd)
+        return copied_obj.__dict__
 
     def is_django_object(self, obj):
         obj_class = type(obj)
@@ -118,7 +124,7 @@ class RedongoClient():
                 obj['_id'] = str(obj['_id'])
         return obj
 
-    def save_to_mongo(self, application_name, objects_to_save, serializer_type):
+    def save_to_mongo(self, application_name, objects_to_save):
         application_config = {}
         if not self.redis.exists('redongo_{0}'.format(application_name)):
             raise client_exceptions.Save_InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
