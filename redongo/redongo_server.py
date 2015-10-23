@@ -26,7 +26,7 @@ except ImportError:
     from pymongo.objectid import ObjectId, InvalidId
 
 try:
-    import cPcikle as pickle
+    import cPickle as pickle
 except:
     import pickle
 

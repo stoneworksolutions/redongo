@@ -5,7 +5,7 @@ except:
     import json
 
 try:
-    import cPcikle as pickle
+    import cPickle as pickle
 except:
     import pickle
 
