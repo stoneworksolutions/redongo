@@ -46,24 +46,28 @@ class RedongoClient():
             raise general_exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
         if serializer_type not in self.serializer_types:
             raise general_exceptions.Register_NoValidSerializer('Can\'t set application settings: No valid serializer')
-        self.app_data[application_name] = {}
-        self.app_data[application_name]['mongo_host'] = mongo_host
-        self.app_data[application_name]['mongo_port'] = mongo_port if mongo_port else 27017
-        self.app_data[application_name]['mongo_database'] = mongo_database
-        self.app_data[application_name]['mongo_collection'] = mongo_collection
-        self.app_data[application_name]['mongo_user'] = mongo_user
+       
+        app_data = {}
+        app_data['mongo_host'] = mongo_host
+        app_data['mongo_port'] = mongo_port if mongo_port else 27017
+        app_data['mongo_database'] = mongo_database
+        app_data['mongo_collection'] = mongo_collection
+        app_data['mongo_user'] = mongo_user
         cipher = cipher_utils.AESCipher(__get_sk__())
-        self.app_data[application_name]['mongo_password'] = cipher.encrypt(mongo_password)
+        app_data['mongo_password'] = cipher.encrypt(mongo_password)
         if bulk_size > 1000:
             bulk_size = 1000
             warnings.warn("deprecated", DeprecationWarning)
-        self.app_data[application_name]['bulk_size'] = bulk_size
-        self.app_data[application_name]['bulk_expiration'] = bulk_expiration
-        self.app_data[application_name]['serializer_type'] = serializer_type
+        app_data['bulk_size'] = bulk_size
+        app_data['bulk_expiration'] = bulk_expiration
+        app_data['serializer_type'] = serializer_type  
 
-        for key, value in self.app_data[application_name].iteritems():
+        for key, value in app_data.iteritems():
             if not value:
                 raise client_exceptions.Register_NoAttributeReceived('Can\'t set application {1} settings: No value set for {0}'.format(key, application_name))
+
+        # APP_DATA OK!
+        self.app_data[application_name] = app_data
 
         self.redis.set('redongo_{0}'.format(application_name), pickle.dumps(self.app_data[application_name]))
 
@@ -147,8 +151,8 @@ class RedongoClient():
             ser = serializer_utils.serializer(application_config['serializer_type'])
             self.redis.rpush(self.redis_queue, *map(lambda x: pickle.dumps([(application_name, application_config['serializer_type'], command), ser.dumps(x)]), final_objects_to_deal))
 
-    def save_to_mongo(self, application_name, objects_to_save, serializer_type):
-        self.order_to_server(self, application_name, objects_to_save, serializer_type, 'save')
+    def save_to_mongo(self, application_name, objects_to_save):
+        self.order_to_server(application_name, objects_to_save, 'save')
 
-    def add_in_mongo(self, application_name, objects_to_update, serializer_type):
-        self.order_to_server(self, application_name, objects_to_update, serializer_type, 'add')
+    def add_in_mongo(self, application_name, objects_to_update):
+        self.order_to_server(application_name, objects_to_update, 'add')

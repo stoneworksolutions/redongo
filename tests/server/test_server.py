@@ -17,9 +17,9 @@ MONGO_USER = 'test'
 MONGO_PASSWORD = 'test123'
 
 # uncomment on our environment
-# REDIS_HOST = 'dev-redis'
-# MONGO_HOST = 'dev-mongo'
-# MONGO_DB = 'mgalan'
+REDIS_HOST = 'dev-redis'
+MONGO_HOST = 'dev-mongo'
+MONGO_DB = 'mgalan'
 
 
 @contextlib.contextmanager
