@@ -5,6 +5,7 @@ from utils import cipher_utils
 from utils import serializer_utils
 import client_exceptions
 import general_exceptions
+import warnings
 try:
     import ujson as json
 except:
@@ -18,6 +19,7 @@ try:
     import cPickle as pickle
 except:
     import pickle
+import copy
 
 
 class RedongoClient():
@@ -29,7 +31,7 @@ class RedongoClient():
         else:
             raise client_exceptions.Client_NoQueueParameter('Not valid queue received: {0}'.format(redis_queue))
 
-	self.app_data = {}
+        self.app_data = {}
 
     def set_application_settings(self, application_name, mongo_host, mongo_port, mongo_database, mongo_collection, mongo_user, mongo_password, bulk_size=100, bulk_expiration=60, serializer_type='pickle'):
 
@@ -52,6 +54,9 @@ class RedongoClient():
         self.app_data[application_name]['mongo_user'] = mongo_user
         cipher = cipher_utils.AESCipher(__get_sk__())
         self.app_data[application_name]['mongo_password'] = cipher.encrypt(mongo_password)
+        if bulk_size > 1000:
+            bulk_size = 1000
+            warnings.warn("deprecated", DeprecationWarning)
         self.app_data[application_name]['bulk_size'] = bulk_size
         self.app_data[application_name]['bulk_expiration'] = bulk_expiration
         self.app_data[application_name]['serializer_type'] = serializer_type
@@ -63,10 +68,10 @@ class RedongoClient():
         self.redis.set('redongo_{0}'.format(application_name), pickle.dumps(self.app_data[application_name]))
 
     def get_application_settings(self, application_name):
-	if application_name in self.app_data:
-	    return self.app_data[application_name]
-	else:
-            return utils.get_application_settings(application_name, self.redis)
+        if application_name in self.app_data:
+            return self.app_data[application_name]
+        else:
+                return utils.get_application_settings(application_name, self.redis)
 
     def remove_application_settings(self, application_name):
         if not application_name:
@@ -77,19 +82,20 @@ class RedongoClient():
         self.redis.delete('redongo_{0}'.format(application_name))
 
     def serialize_django_object(self, obj):
+        copied_obj = copy.deepcopy(obj)
         fields = set()
         excluded_fields = set(['_id'])
-        if not getattr(obj, '_id', None) and  getattr(obj, 'pk', None):
-            obj._id = obj.pk
-        for field in obj._meta.fields:
+        if not getattr(copied_obj, '_id', None) and getattr(copied_obj, 'pk', None):
+            copied_obj._id = copied_obj.pk
+        for field in copied_obj._meta.fields:
             fields.add(field.column)
         fields_to_delete = set()
-        for attr, value in obj.__dict__.iteritems():
+        for attr, value in copied_obj.__dict__.iteritems():
             if attr not in fields:
                 fields_to_delete.add(attr)
         for ftd in fields_to_delete-excluded_fields:
-            obj.__delattr__(ftd)
-        return obj.__dict__
+            copied_obj.__delattr__(ftd)
+        return copied_obj.__dict__
 
     def is_django_object(self, obj):
         obj_class = type(obj)
@@ -126,18 +132,23 @@ class RedongoClient():
                 obj['_id'] = str(obj['_id'])
         return obj
 
-    def save_to_mongo(self, application_name, objects_to_save, serializer_type):
+    def order_to_server(self, application_name, objects_to_deal, command):
         application_config = {}
         if not ((application_name in self.app_data) or self.redis.exists('redongo_{0}'.format(application_name))):
             raise client_exceptions.Save_InexistentAppSettings('Application settings for app {0} does not exist'.format(application_name))
         application_config = self.get_application_settings(application_name)
-        if not hasattr(objects_to_save, '__iter__') or type(objects_to_save) == dict:
-            objects_to_save = [objects_to_save]
-        final_objects_to_save = []
-        for obj in objects_to_save:
+        if not hasattr(objects_to_deal, '__iter__') or type(objects_to_deal) == dict:
+            objects_to_deal = [objects_to_deal]
+        final_objects_to_deal = []
+        for obj in objects_to_deal:
             obj = self.serialize_object(obj)
-            final_objects_to_save.append(obj)
-        if final_objects_to_save:
+            final_objects_to_deal.append(obj)
+        if final_objects_to_deal:
             ser = serializer_utils.serializer(application_config['serializer_type'])
-            self.redis.rpush(self.redis_queue, *map(lambda x: pickle.dumps([(application_name, application_config['serializer_type']), ser.dumps(x)]), final_objects_to_save))
+            self.redis.rpush(self.redis_queue, *map(lambda x: pickle.dumps([(application_name, application_config['serializer_type'], command), ser.dumps(x)]), final_objects_to_deal))
 
+    def save_to_mongo(self, application_name, objects_to_save, serializer_type):
+        self.order_to_server(self, application_name, objects_to_save, serializer_type, 'save')
+
+    def add_in_mongo(self, application_name, objects_to_update, serializer_type):
+        self.order_to_server(self, application_name, objects_to_update, serializer_type, 'add')

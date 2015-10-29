@@ -74,9 +74,9 @@ class RedongoServer(object):
 
     def save_to_failed_queue(self, application_name, bulk):
         i = 0
-        for obj in bulk['data']:
+        for obj, command in bulk['data']:
             ser = serializer_utils.serializer(bulk['serializer'])
-            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), pickle.dumps([[application_name, bulk['serializer']], ser.dumps(obj)]))
+            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), pickle.dumps([[application_name, bulk['serializer'], command], ser.dumps(obj)]))
             i += 1
         logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
 
@@ -105,7 +105,7 @@ class RedongoServer(object):
                         application_bulk.update(application_settings)
                         ser = serializer_utils.serializer(obj[0][1])
                         obj_data = ser.loads(obj[1])
-                        application_bulk['data'].append(self.normalize_object(obj_data))
+                        application_bulk['data'].append(self.normalize_object(obj_data), obj[0][2])
 
                 while self.completed_bulks:
                     self.consume_application(self.completed_bulks.pop())
@@ -118,8 +118,8 @@ class RedongoServer(object):
         logger.debug('Returning memory data to Redis')
         objects_returned = 0
         for application_name, bulk in self.bulks.iteritems():
-            for obj in bulk['data']:
-                self.redis.rpush(self.redisQueue, pickle.dumps([[application_name, bulk['serializer']], self.serialize_object(obj, bulk['serializer'])]))
+            for obj, command in bulk['data']:
+                self.redis.rpush(self.redisQueue, pickle.dumps([[application_name, bulk['serializer'], command], self.serialize_object(obj, bulk['serializer'])]))
                 objects_returned += 1
         logger.debug('{0} objects returned to Redis'.format(objects_returned))
 
@@ -146,31 +146,60 @@ class RedongoServer(object):
         ser = serializer_utils.serializer(serializer)
         return ser.dumps(obj)
 
-    def save_to_mongo(self, application_name):
+    def deal_with_mongo(self, application_name):
+        bulk = self.bulks['application_name']
         try:
-            bulk = self.bulks[application_name]
             collection = self.get_mongo_collection(bulk)
         except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
             logger.error('Not saving bulk {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
             self.save_to_failed_queue(application_name, bulk)
             return
+        while bulk['data']:
+            try:
+                obj, command = bulk['data'].pop()
+                if command is 'save':
+                    self.save_to_mongo(collection, obj)
+                elif bulk['command'] is 'add':
+                    self.update_in_mongo(collection, obj)
+            except (pymongo.errors.OperationFailure):
+                self.redis.rpush(self.redisQueue, pickle.dumps([[application_name, bulk['serializer'], command], self.serialize_object(obj, bulk['serializer'])]))
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError), e:
+                bulk.append((obj, command))
+                logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
+                self.save_to_failed_queue(application_name, bulk)
+                break
 
+    def save_to_mongo(self, collection, obj):
         try:
-            collection.insert(bulk['data'])
+            collection.insert(obj)
         except DuplicateKeyError:
-            while bulk['data']:
-                try:
-                    try:
-                        obj = bulk['data'].pop()
-                        collection.insert(obj)
-                    except DuplicateKeyError:
-                        collection.update({'_id': obj['_id']}, obj)
-                except:
-                    bulk['data'].append(obj)
-                    raise
-        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
-            logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
-            self.save_to_failed_queue(application_name, bulk)
+            collection.update({'_id': obj['_id']}, obj)
+
+    def create_update_query(self, obj, previous_field='', query={}):
+        query.setdefault('$inc', {})
+        query.setdefault('$push', {})
+        query.setdefault('$set', {})
+        for field, value in obj:
+            if field is '_id':
+                continue
+            type_field = type(value)
+            # Numeric and logical fields perform an addition
+            if type_field is int or type_field is float or type_field is complex or type_field is bool:
+                query['$inc'][field] = value
+            # String fields perform a set
+            elif type_field is str:
+                query['$set'][field] = value
+            # List fields perform a concatenation
+            elif type_field is list:
+                query['$push'][field] = {'$each': value}
+            # Dict fields will be treated as the original object
+            elif type_field is dict:
+                query = self.create_update_query(value, '{0}.{1}'.format(previous_field, field), query)
+        return query
+
+    def add_in_mongo(self, collection, obj):
+        self.create_update_query(obj)
+        collection.update(obj)
 
     def consume_application(self, application_name):
         # In case that check_completed_bulks reads while main thread was saving on previous iteration
