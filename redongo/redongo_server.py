@@ -1,3 +1,4 @@
+
 import datetime
 import logging
 import logging.handlers
@@ -93,7 +94,7 @@ class RedongoServer(object):
                 if object_found:
                     self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
                     while self.objs:
-                        obj = pickle.loads(self.objs.pop())
+                        obj = pickle.loads(self.objs.pop(0))
                         try:
                             self.check_object(obj)
                             application_settings = self.get_application_settings(obj[0][0])
@@ -105,7 +106,7 @@ class RedongoServer(object):
                         application_bulk.update(application_settings)
                         ser = serializer_utils.serializer(obj[0][1])
                         obj_data = ser.loads(obj[1])
-                        application_bulk['data'].append(self.normalize_object(obj_data), obj[0][2])
+                        application_bulk['data'].append((self.normalize_object(obj_data), obj[0][2]))
 
                 while self.completed_bulks:
                     self.consume_application(self.completed_bulks.pop())
