@@ -148,64 +148,116 @@ class RedongoServer(object):
         return ser.dumps(obj)
 
     def deal_with_mongo(self, application_name):
-        bulk = self.bulks['application_name']
+        bulk = self.bulks[application_name]
+        set_of_objects = []
+        to_failed = []
+        result = None
         try:
             collection = self.get_mongo_collection(bulk)
         except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
             logger.error('Not saving bulk {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
-            self.save_to_failed_queue(application_name, bulk)
+            self.save_to_failed(application_name, bulk)
             return
+        # Separates objects with different commands. When appears any object with other command, executes current command for all readed objects
+        current_command = bulk['data'][0][1]
         while bulk['data']:
-            try:
-                obj, command = bulk['data'].pop()
-                if command is 'save':
-                    self.save_to_mongo(collection, obj)
-                elif bulk['command'] is 'add':
-                    self.update_in_mongo(collection, obj)
-            except (pymongo.errors.OperationFailure):
-                self.redis.rpush(self.redisQueue, pickle.dumps([[application_name, bulk['serializer'], command], self.serialize_object(obj, bulk['serializer'])]))
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError), e:
-                bulk.append((obj, command))
-                logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
-                self.save_to_failed_queue(application_name, bulk)
-                break
+            obj, command = bulk['data'].pop(0)
+            if command == current_command:
+                set_of_objects.append(obj)
+            else:
+                # Execute command for all readed objects
+                if current_command == 'save':
+                    result = self.save_to_mongo(collection, set_of_objects)
+                elif current_command == 'add':
+                    result = self.add_in_mongo(collection, set_of_objects)
+                # Notify on failure
+                if result:
+                    logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(result[0], application_name, result[1]))
+                    to_failed += map(lambda x: (x, command), result[0])
+                current_command = command
+        # Last set
+        if current_command == 'save':
+            result = self.save_to_mongo(collection, set_of_objects)
+        elif current_command == 'add':
+            result = self.add_in_mongo(collection, set_of_objects)
+        # Notify on failure
+        if result:
+            logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(result[0], application_name, result[1]))
+            to_failed += map(lambda x: (x, current_command), result[0])
 
-    def save_to_mongo(self, collection, obj):
+        # If an error occurred, it notifies and inserts the required objects
+        if to_failed:
+            bulk['data'] = to_failed
+            self.save_to_failed_queue(application_name, bulk)
+
+    def save_to_mongo(self, collection, objs):
+        to_insert = []
+        to_update = []
+        differents = set()
+        while objs:
+            obj = objs.pop(0)
+            if obj['_id'] not in differents:
+                to_insert.append(obj)
+                differents.add(obj['_id'])
+            else:
+                to_update.append(obj)
+        # Bulk insert
         try:
-            collection.insert(obj)
+            collection.insert(to_insert)
         except DuplicateKeyError:
-            collection.update({'_id': obj['_id']}, obj)
+            to_update = to_insert + to_update
 
-    def create_update_query(self, obj, previous_field='', query={}):
+        # One-to-one update
+        while to_update:
+            obj = to_update.pop(0)
+            try:
+                collection.update({'_id': obj['_id']}, obj)
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
+                to_update.append(obj)
+                # Return unsaved objects and info
+                return (to_update, e)
+
+    def create_add_query(self, obj, previous_field='', query={}):
         query.setdefault('$inc', {})
         query.setdefault('$push', {})
         query.setdefault('$set', {})
-        for field, value in obj:
-            if field is '_id':
+        for field, value in obj.iteritems():
+            if field == '_id':
                 continue
             type_field = type(value)
             # Numeric and logical fields perform an addition
             if type_field is int or type_field is float or type_field is complex or type_field is bool:
-                query['$inc'][field] = value
+                query['$inc'][previous_field + field] = value
             # String fields perform a set
             elif type_field is str:
-                query['$set'][field] = value
+                query['$set'][previous_field + field] = value
             # List fields perform a concatenation
             elif type_field is list:
-                query['$push'][field] = {'$each': value}
+                query['$push'][previous_field + field] = {'$each': value}
             # Dict fields will be treated as the original object
             elif type_field is dict:
-                query = self.create_update_query(value, '{0}.{1}'.format(previous_field, field), query)
+                query = self.create_add_query(value, '{0}{1}.'.format(previous_field, field), query)
+        operations = query.keys()
+        for operation in operations:
+            if not query[operation]:
+                query.pop(operation)
         return query
 
-    def add_in_mongo(self, collection, obj):
-        self.create_update_query(obj)
-        collection.update(obj)
+    def add_in_mongo(self, collection, objs):
+        # One-to-one update
+        while objs:
+            obj = objs.pop(0)
+            try:
+                collection.update({'_id': obj['_id']}, self.create_add_query(obj), upsert=True)
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
+                objs.insert(0, obj)
+                # Return unadded objects and info
+                return (objs, e)
 
     def consume_application(self, application_name):
         # In case that check_completed_bulks reads while main thread was saving on previous iteration
         if application_name in self.bulks:
-            self.save_to_mongo(application_name)
+            self.deal_with_mongo(application_name)
             self.bulks.pop(application_name)
 
     def check_completed_bulks(self):

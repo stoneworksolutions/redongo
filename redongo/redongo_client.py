@@ -46,7 +46,7 @@ class RedongoClient():
             raise general_exceptions.Register_NoApplicationName('Can\'t set application settings: No application name')
         if serializer_type not in self.serializer_types:
             raise general_exceptions.Register_NoValidSerializer('Can\'t set application settings: No valid serializer')
-       
+
         app_data = {}
         app_data['mongo_host'] = mongo_host
         app_data['mongo_port'] = mongo_port if mongo_port else 27017
@@ -60,7 +60,7 @@ class RedongoClient():
             warnings.warn("deprecated", DeprecationWarning)
         app_data['bulk_size'] = bulk_size
         app_data['bulk_expiration'] = bulk_expiration
-        app_data['serializer_type'] = serializer_type  
+        app_data['serializer_type'] = serializer_type
 
         for key, value in app_data.iteritems():
             if not value:
