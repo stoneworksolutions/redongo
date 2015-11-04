@@ -15,8 +15,7 @@ APPNAME_JSON = 'testAppJson'
 APPNAME_UJSON = 'testAppuJson'
 APPNAME_PICKLE = 'testAppPickle'
 import os
-env = os.environ
-if 'TRAVIS' in env and env['TRAVIS'] == 'true':
+if os.getenv('TRAVIS'):
     REDIS_HOST = 'localhost'
     MONGO_HOST = 'localhost'
     MONGO_DB = 'mydb_test'
