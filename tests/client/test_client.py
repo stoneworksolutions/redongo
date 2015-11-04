@@ -14,12 +14,19 @@ APPNAME_FAKE = 'testAppFake'
 APPNAME_JSON = 'testAppJson'
 APPNAME_UJSON = 'testAppuJson'
 APPNAME_PICKLE = 'testAppPickle'
-REDIS_HOST = 'localhost'
+import os
+env = os.environ
+if 'TRAVIS' in env and env['TRAVIS'] == 'true':
+    REDIS_HOST = 'localhost'
+    MONGO_HOST = 'localhost'
+    MONGO_DB = 'mydb_test'
+else:
+    REDIS_HOST = 'dev-redis'
+    MONGO_HOST = 'dev-mongo'
+    MONGO_DB = 'mgalan'
 REDIS_DB = 0
 REDIS_QUEUE = 'REDONGO_TEST_QUEUE'
-MONGO_HOST = 'localhost'
 MONGO_PORT = 27017
-MONGO_DB = 'mydb_test'
 MONGO_COLLECTION = 'mycollection_test'
 MONGO_USER = 'test'
 MONGO_PASSWORD = 'test123'
@@ -29,9 +36,9 @@ SERIALIZER_PICKLE = 'pickle'
 test_redongo = None
 
 # uncomment on our environment
-# REDIS_HOST = 'dev-redis'
-# MONGO_HOST = 'dev-mongo'
-# MONGO_DB = 'mgalan'
+REDIS_HOST = 'dev-redis'
+MONGO_HOST = 'dev-mongo'
+MONGO_DB = 'mgalan'
 
 OBJECTID = ObjectId()
 
@@ -42,7 +49,13 @@ class TestClient:
         r = redis.Redis(REDIS_HOST, db=REDIS_DB)
         try:
             r.delete(*r.keys('{0}*'.format(REDIS_QUEUE)))
+        except redis.exceptions.ResponseError:
+            pass
+        try:
             r.delete(*r.keys('REDONGO_*'))
+        except redis.exceptions.ResponseError:
+            pass
+        try:
             r.delete(*r.keys('redongo_*'))
         except redis.exceptions.ResponseError:
             pass
@@ -99,6 +112,7 @@ class TestClient:
         test_redongo.set_application_settings(APPNAME, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, MONGO_PASSWORD, bulk_size=2, serializer_type=SERIALIZER_JSON)
 
     def test__set_application_settings__OK2(self):
+        # This test will generate a FAILED_QUEUE element in Redongo Server test
         global test_redongo
         test_redongo.set_application_settings(APPNAME2, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLLECTION, MONGO_USER, '123', bulk_size=1, serializer_type=SERIALIZER_JSON)
 
@@ -176,6 +190,25 @@ class TestClient:
         global test_redongo
         test_redongo.save_to_mongo(APPNAME, {'_id': OBJECTID, 'test': 5})
 
+    def test__add_in_mongo__OK1(self):
+        global test_redongo
+        obj = {
+            '_id': 123454321,
+            'int_field': 1,
+            'long_field': 1L,
+            'float_field': 1.0,
+            # 'complex_field': 1j,
+            'list_field': ['list_element'],
+            'dict_field': {
+                'int_field': 1,
+                'long_field': 1L,
+                'float_field': 1.0,
+                # 'complex_field': 1j,
+                'list_field': ['list_element'],
+            }
+        }
+        test_redongo.add_in_mongo(APPNAME_PICKLE, [obj]*100)
+
     def test__remove_application_settings__NoOK(self):
         global test_redongo
         with pytest.raises(general_exceptions.Register_NoApplicationName):
@@ -209,4 +242,4 @@ class TestClient:
         # 2 app settings + redongo_sk
         assert len(r.keys('redongo*')) == 6
         # 3 elements in queue
-        assert r.llen(REDIS_QUEUE) == 12
+        assert r.llen(REDIS_QUEUE) == 112

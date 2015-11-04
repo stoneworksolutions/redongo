@@ -17,9 +17,9 @@ MONGO_USER = 'test'
 MONGO_PASSWORD = 'test123'
 
 # uncomment on our environment
-# REDIS_HOST = 'dev-redis'
-# MONGO_HOST = 'dev-mongo'
-# MONGO_DB = 'mgalan'
+REDIS_HOST = 'dev-redis'
+MONGO_HOST = 'dev-mongo'
+MONGO_DB = 'mgalan'
 
 
 @contextlib.contextmanager
@@ -39,8 +39,28 @@ class TestServer:
         with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE), '-l', '0'):
             redongo_server.main()
 
-        r = redis.Redis(REDIS_HOST, db=REDIS_DB)
-        assert r.llen(REDIS_QUEUE) == 0
-        assert r.llen(REDIS_QUEUE_FAILED) == 1
-        assert mongo_client[MONGO_DB][MONGO_COLLECTION].count() == 8
-        assert mongo_client[MONGO_DB][MONGO_COLLECTION].find({"test": 5}).count() == 3
+        # r = redis.Redis(REDIS_HOST, db=REDIS_DB)
+        # assert r.llen(REDIS_QUEUE) == 0
+        # assert r.llen(REDIS_QUEUE_FAILED) == 1
+        # assert mongo_client[MONGO_DB][MONGO_COLLECTION].count() == 9
+        # assert mongo_client[MONGO_DB][MONGO_COLLECTION].find({"test": 5}).count() == 3
+        search = mongo_client[MONGO_DB][MONGO_COLLECTION].find({"_id": 123454321})
+        assert search.count() == 1
+
+        obj = {
+            '_id': 123454321,
+            'int_field': 100,
+            'long_field': 100L,
+            'float_field': 100.0,
+            # 'complex_field': 100j,
+            'list_field': ['list_element']*100,
+            'dict_field': {
+                'int_field': 100,
+                'long_field': 100L,
+                'float_field': 100.0,
+                # 'complex_field': 100j,
+                'list_field': ['list_element']*100,
+            }
+        }
+
+        assert search.next() == obj

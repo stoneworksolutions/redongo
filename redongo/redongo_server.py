@@ -55,7 +55,6 @@ class RedongoServer(object):
                 result = os.urandom(16)
                 self.redis.set('redongo_sk', result)
             return result
-
         logger.debug('Starting Redongo Server..')
         self.redis = redis_utils.get_redis_connection(options.redisIP, redis_db=options.redisDB, redis_port=options.redisPort)
         self.keep_going = True
@@ -82,6 +81,7 @@ class RedongoServer(object):
         logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
 
     def run(self):
+        failed_objects = []
         try:
             logger.debug('Running!')
             while self.keep_going:
@@ -100,6 +100,7 @@ class RedongoServer(object):
                             application_settings = self.get_application_settings(obj[0][0])
                         except (server_exceptions.ObjectValidationError, general_exceptions.ApplicationSettingsError), e:
                             logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
+                            failed_objects.append(obj[0])
                             continue
                         application_bulk = self.bulks.setdefault(obj[0][0], {'serializer': obj[0][1], 'data': []})
                         application_bulk.setdefault('inserted_date', datetime.datetime.utcnow())
@@ -156,7 +157,7 @@ class RedongoServer(object):
             collection = self.get_mongo_collection(bulk)
         except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
             logger.error('Not saving bulk {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
-            self.save_to_failed(application_name, bulk)
+            self.save_to_failed_queue(application_name, bulk)
             return
         # Separates objects with different commands. When appears any object with other command, executes current command for all readed objects
         current_command = bulk['data'][0][1]
@@ -172,9 +173,10 @@ class RedongoServer(object):
                     result = self.add_in_mongo(collection, set_of_objects)
                 # Notify on failure
                 if result:
-                    logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(result[0], application_name, result[1]))
-                    to_failed += map(lambda x: (x, command), result[0])
+                    logger.error('Not saving {0} objects (moving to failed queue) from application {1} due to connection bad data'.format(len(result), application_name))
+                    to_failed += map(lambda x: (x, command), result)
                 current_command = command
+                set_of_objects = [obj]
         # Last set
         if current_command == 'save':
             result = self.save_to_mongo(collection, set_of_objects)
@@ -182,8 +184,8 @@ class RedongoServer(object):
             result = self.add_in_mongo(collection, set_of_objects)
         # Notify on failure
         if result:
-            logger.error('Not saving single {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(result[0], application_name, result[1]))
-            to_failed += map(lambda x: (x, current_command), result[0])
+            logger.error('Not saving {0} objects (moving to failed queue) from application {1} due to connection bad data'.format(len(result), application_name))
+            to_failed += map(lambda x: (x, current_command), result)
 
         # If an error occurred, it notifies and inserts the required objects
         if to_failed:
@@ -193,10 +195,13 @@ class RedongoServer(object):
     def save_to_mongo(self, collection, objs):
         to_insert = []
         to_update = []
+        to_failed = []
         differents = set()
         while objs:
             obj = objs.pop(0)
-            if obj['_id'] not in differents:
+            if '_id' not in obj:
+                to_insert.append(obj)
+            elif obj['_id'] not in differents:
                 to_insert.append(obj)
                 differents.add(obj['_id'])
             else:
@@ -212,47 +217,44 @@ class RedongoServer(object):
             obj = to_update.pop(0)
             try:
                 collection.update({'_id': obj['_id']}, obj)
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
-                to_update.append(obj)
-                # Return unsaved objects and info
-                return (to_update, e)
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure):
+                to_failed.append(obj)
+        # Return unsaved objects
+        return to_failed
 
     def create_add_query(self, obj, previous_field='', query={}):
-        query.setdefault('$inc', {})
-        query.setdefault('$push', {})
-        query.setdefault('$set', {})
         for field, value in obj.iteritems():
             if field == '_id':
                 continue
             type_field = type(value)
-            # Numeric and logical fields perform an addition
-            if type_field is int or type_field is float or type_field is complex or type_field is bool:
-                query['$inc'][previous_field + field] = value
+            # Numeric and logical fields perform an addition (Complex number are not supported by mongo)
+            if type_field is int or type_field is long or type_field is float or type_field is bool:  # type_field is complex:
+                x = query.setdefault('$inc', {})
+                x[previous_field + field] = value
             # String fields perform a set
             elif type_field is str:
-                query['$set'][previous_field + field] = value
+                x = query.setdefault('$set', {})
+                x[previous_field + field] = value
             # List fields perform a concatenation
             elif type_field is list:
-                query['$push'][previous_field + field] = {'$each': value}
+                x = query.setdefault('$push', {})
+                x[previous_field + field] = {'$each': value}
             # Dict fields will be treated as the original object
             elif type_field is dict:
                 query = self.create_add_query(value, '{0}{1}.'.format(previous_field, field), query)
-        operations = query.keys()
-        for operation in operations:
-            if not query[operation]:
-                query.pop(operation)
         return query
 
     def add_in_mongo(self, collection, objs):
+        to_failed = []
         # One-to-one update
         while objs:
             obj = objs.pop(0)
             try:
                 collection.update({'_id': obj['_id']}, self.create_add_query(obj), upsert=True)
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
-                objs.insert(0, obj)
-                # Return unadded objects and info
-                return (objs, e)
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure):
+                to_failed.append(obj)
+        # Return unadded objects and info
+        return to_failed
 
     def consume_application(self, application_name):
         # In case that check_completed_bulks reads while main thread was saving on previous iteration
