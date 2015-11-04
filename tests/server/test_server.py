@@ -10,7 +10,8 @@ REDIS_DB = 0
 REDIS_QUEUE = 'REDONGO_TEST_QUEUE'
 REDIS_QUEUE_FAILED = 'REDONGO_TEST_QUEUE_FAILED'
 import os
-if os.getenv('TRAVIS'):
+env = os.getenv('TRAVIS')
+if env == 'true':
     REDIS_HOST = 'localhost'
     MONGO_HOST = 'localhost'
     MONGO_DB = 'mydb_test'

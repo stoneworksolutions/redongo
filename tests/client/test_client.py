@@ -15,7 +15,8 @@ APPNAME_JSON = 'testAppJson'
 APPNAME_UJSON = 'testAppuJson'
 APPNAME_PICKLE = 'testAppPickle'
 import os
-if os.getenv('TRAVIS'):
+env = os.getenv('TRAVIS')
+if env == 'true':
     REDIS_HOST = 'localhost'
     MONGO_HOST = 'localhost'
     MONGO_DB = 'mydb_test'
@@ -33,11 +34,6 @@ SERIALIZER_JSON = 'json'
 SERIALIZER_UJSON = 'ujson'
 SERIALIZER_PICKLE = 'pickle'
 test_redongo = None
-
-# uncomment on our environment
-REDIS_HOST = 'dev-redis'
-MONGO_HOST = 'dev-mongo'
-MONGO_DB = 'mgalan'
 
 OBJECTID = ObjectId()
 
