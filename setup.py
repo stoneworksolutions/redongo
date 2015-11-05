@@ -17,12 +17,12 @@ if platform.python_implementation() != 'PyPy':
 setup(
     name='redongo',
     packages=find_packages(exclude=DIRS_EXCLUDED),
-    version='0.1.11.1',
+    version='0.1.12',
     description='Gets stuff from a Redis queue and inserts it in Mongo',
     author='StoneWork Solutions',
     author_email='dev@stoneworksolutions.net',
     url='https://github.com/stoneworksolutions/redongo',
-    download_url='https://github.com/stoneworksolutions/redongo/tarball/0.1.11.1',
+    download_url='https://github.com/stoneworksolutions/redongo/tarball/0.1.12',
     keywords=['redis', 'mongo', 'bulks'],  # arbitrary keywords
     classifiers=[],
     install_requires=install_requires
