@@ -132,13 +132,16 @@ class RedongoServer(object):
         return collection
 
     def normalize_object(self, obj):
-        if obj.get('_id', None):
-            try:
-                obj['_id'] = ObjectId(obj['_id'])
-            except InvalidId:
-                pass
-            except TypeError:
-                pass
+        objectid_fields = obj.pop('objectid_fields')
+        for f in objectid_fields:
+            if obj.get(f, None):
+                try:
+                    obj[f] = ObjectId(obj[f])
+                except InvalidId:
+                    pass
+                except TypeError:
+                    pass
+
         return obj
 
     def serialize_object(self, obj, serializer):

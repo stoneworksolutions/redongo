@@ -90,8 +90,13 @@ class RedongoClient():
         fields = set()
         excluded_fields = set(['_id'])
         if not getattr(copied_obj, '_id', None) and getattr(copied_obj, 'pk', None):
-            copied_obj._id = copied_obj.pk
+            obj['objectid_fields'].append('_id')
+            pk_name = copied_obj._meta.pk.name
+            copied_obj._id = copied_obj.getattr(pk_name)
+            delattr(copied_obj, pk_name)
         for field in copied_obj._meta.fields:
+            if getattr(field, 'to_fields', None):
+                obj['objectid_fields'].append(field.column)
             fields.add(field.column)
         fields_to_delete = set()
         for attr, value in copied_obj.__dict__.iteritems():
@@ -131,6 +136,7 @@ class RedongoClient():
 
     def serialize_object(self, obj):
         obj = self.serialize_object_by_type(obj)
+        obj['objectid_fields'] = ['_id']
         if obj.get('_id', None):
             if type(obj['_id']) is ObjectId:
                 obj['_id'] = str(obj['_id'])
