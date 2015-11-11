@@ -92,7 +92,7 @@ class RedongoClient():
         excluded_fields = set(['_id'])
         if not getattr(copied_obj, '_id', None) and getattr(copied_obj, 'pk', None):
             pk_name = copied_obj._meta.pk.name
-            copied_obj._id = copied_obj.getattr(pk_name)
+            copied_obj._id = getattr(copied_obj, pk_name)
             delattr(copied_obj, pk_name)
         for field in copied_obj._meta.fields:
             if getattr(field, 'to_fields', None):
