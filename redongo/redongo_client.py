@@ -88,15 +88,15 @@ class RedongoClient():
     def serialize_django_object(self, obj):
         copied_obj = copy.deepcopy(obj)
         fields = set()
+        objectid_fields = []
         excluded_fields = set(['_id'])
         if not getattr(copied_obj, '_id', None) and getattr(copied_obj, 'pk', None):
-            obj['objectid_fields'].append('_id')
             pk_name = copied_obj._meta.pk.name
             copied_obj._id = copied_obj.getattr(pk_name)
             delattr(copied_obj, pk_name)
         for field in copied_obj._meta.fields:
             if getattr(field, 'to_fields', None):
-                obj['objectid_fields'].append(field.column)
+                objectid_fields.append(field.column)
             fields.add(field.column)
         fields_to_delete = set()
         for attr, value in copied_obj.__dict__.iteritems():
@@ -104,6 +104,8 @@ class RedongoClient():
                 fields_to_delete.add(attr)
         for ftd in fields_to_delete-excluded_fields:
             copied_obj.__delattr__(ftd)
+        obj_serialized = copied_obj.__dict__
+        obj_serialized['objectid_fields'] = objectid_fields
         return copied_obj.__dict__
 
     def is_django_object(self, obj):
@@ -117,26 +119,32 @@ class RedongoClient():
         return django_object
 
     def serialize_object_by_type(self, obj):
+        obj_serialized = None
         if type(obj) == dict:
-            return obj
+            obj_serialized = obj
         elif type(obj) == str:
             try:
-                return json.loads(obj)
+                obj_serialized = json.loads(obj)
             except (ValueError, TypeError):
                 pass
         elif self.is_django_object(obj):
-            return self.serialize_django_object(obj)
+            obj_serialized = self.serialize_django_object(obj)
         else:
             try:
-                return obj.__dict__
+                obj_serialized = obj.__dict__
             except AttributeError:
                 pass
+
+        if obj_serialized:
+            if 'objectid_fields' not in obj_serialized:
+                obj_serialized['objectid_fields'] = []
+            obj_serialized['objectid_fields'].append('_id')
+            return obj_serialized
 
         raise client_exceptions.Save_InvalidClass('Saving invalid type')
 
     def serialize_object(self, obj):
         obj = self.serialize_object_by_type(obj)
-        obj['objectid_fields'] = ['_id']
         if obj.get('_id', None):
             if type(obj['_id']) is ObjectId:
                 obj['_id'] = str(obj['_id'])
