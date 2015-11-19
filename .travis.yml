@@ -14,6 +14,7 @@ before_script:
   - pyflakes redongo
 before_script:
   - mongo mydb_test --eval 'db.addUser("test", "test123");'
-
 script:
   - py.test
+notifications:
+  slack: stoneworksolutions:dWSagzBbTkOZUk7sZLNSs1AD
