@@ -132,7 +132,7 @@ class RedongoServer(object):
         return collection
 
     def normalize_object(self, obj):
-        objectid_fields = obj.pop('objectid_fields')
+        objectid_fields = obj.pop('objectid_fields', [])
         for f in objectid_fields:
             if obj.get(f, None):
                 try:
