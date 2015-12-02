@@ -15,10 +15,12 @@ from utils import utils
 from utils import redis_utils
 from utils import cipher_utils
 from utils import serializer_utils
+from utils import queue_utils
 from optparse import OptionParser
 from pymongo.errors import DuplicateKeyError
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
+from redlock import Redlock
 
 try:
     from bson.objectid import ObjectId
@@ -60,10 +62,15 @@ class RedongoServer(object):
         self.keep_going = True
         self.redisQueue = options.redisQueue
         self.popSize = int(options.popSize)
+        self.redisQueueSize = int(options.redisQueueSize)
         self.bulks = {}
         self.completed_bulks = set()
         self.objs = []
         self.cipher = cipher_utils.AESCipher(__get_sk__())
+        self.disk_queue = queue_utils.Queue(queue_name=options.diskQueue)
+        self.returned_disk_queue = queue_utils.Queue(queue_name='{0}_returned'.format(options.diskQueue))
+        self.redlock = Redlock([{"host": options.redisIP, "port": options.redisPort, "db": options.redisDB}])
+        self.lock_key = '{0}_LOCK'.format(self.redisQueue)
 
     def check_object(self, obj):
         if type(obj) != list or len(obj) != 2:
@@ -82,17 +89,46 @@ class RedongoServer(object):
 
     def run(self):
         failed_objects = []
+        first_run = True
         try:
             logger.debug('Running!')
+
             while self.keep_going:
                 object_found = False
-                try:
-                    self.objs.append(self.redis.blpop(self.redisQueue)[1])
-                    object_found = True
-                except redis.TimeoutError:
-                    pass
+
+                lock = self.redlock.lock(self.lock_key, 60 * 1000)
+                while not lock:
+                    time.sleep(1)
+                    lock = self.redlock.lock(self.lock_key, 60 * 1000)
+
+                if first_run:
+                    while self.returned_disk_queue._length > 0:
+                        self.objs.append(self.returned_disk_queue.pop())
+                        object_found = True
+                    first_run = False
+                    if object_found:
+                        logger.debug('Got {0} objects from disk queue {1}'.format(len(self.objs), self.returned_disk_queue._disk_queue_name))
+
+                if self.disk_queue._length > 0:
+                    for i in range(0, self.popSize):
+                        if self.disk_queue._length:
+                            self.objs.append(self.disk_queue.pop())
+                            object_found = True
+                        else:
+                            break
+                else:
+                    try:
+                        self.objs.append(self.redis.blpop(self.redisQueue)[1])
+                        object_found = True
+                    except redis.TimeoutError:
+                        pass
+                    if object_found:
+                        self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+
+                if lock:
+                    self.redlock.unlock(lock)
+
                 if object_found:
-                    self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
                     while self.objs:
                         obj = pickle.loads(self.objs.pop(0))
                         try:
@@ -112,18 +148,21 @@ class RedongoServer(object):
                 while self.completed_bulks:
                     self.consume_application(self.completed_bulks.pop())
 
+                # Guarantee that the looping call can access the lock
+                time.sleep(.2)
+
         except:
             logger.error('Stopping redongo because unexpected exception: {0}'.format(traceback.format_exc()))
             stopApp()
 
-    def back_to_redis(self):
-        logger.debug('Returning memory data to Redis')
+    def back_to_disk(self):
+        logger.debug('Returning memory data to Disk Queue')
         objects_returned = 0
         for application_name, bulk in self.bulks.iteritems():
             for obj, command in bulk['data']:
-                self.redis.rpush(self.redisQueue, pickle.dumps([[application_name, bulk['serializer'], command], self.serialize_object(obj, bulk['serializer'])]))
+                self.returned_disk_queue.push(pickle.dumps([[application_name, bulk['serializer'], command], self.serialize_object(obj, bulk['serializer'])]))
                 objects_returned += 1
-        logger.debug('{0} objects returned to Redis'.format(objects_returned))
+        logger.debug('{0} objects returned to Disk Queue'.format(objects_returned))
 
     def get_mongo_collection(self, bulk):
         mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(bulk['mongo_user'], self.cipher.decrypt(bulk['mongo_password']), bulk['mongo_host'], bulk['mongo_database']))
@@ -273,13 +312,55 @@ class RedongoServer(object):
         except:
             stopApp()
 
+    def check_redis_queue(self):
+        try:
+            if self.redis.llen(self.redisQueue) > self.redisQueueSize or self.disk_queue._length > 0:
+                to_disk_queue = []
+                object_found = False
+                lock = self.redlock.lock(self.lock_key, 60 * 1000)
+                cont = 0
+                while not lock:
+                    if cont % 10 == 0:
+                        logger.debug('Redis queue watcher waiting to get lock...')
+                    time.sleep(.2)
+                    lock = self.redlock.lock(self.lock_key, 60 * 1000)
+                    cont += 1
+                while self.redis.llen(self.redisQueue) > self.redisQueueSize:
+                    try:
+                        to_disk_queue.append(self.redis.blpop(self.redisQueue)[1])
+                        object_found = True
+                    except redis.TimeoutError:
+                        pass
+                    if object_found:
+                        to_disk_queue.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                    self.save_to_disk_queue(to_disk_queue)
+                self.redlock.unlock(lock)
+        except redis.TimeoutError:
+            pass
+
+    def save_to_disk_queue(self, objs):
+        while objs:
+            obj = objs.pop(0)
+            self.disk_queue.push(obj)
+
+    def close_disk_queues(self):
+        try:
+            self.disk_queue.close()
+        except:
+            logger.error('Could not close disk queue {0}: {1}'.format(self.disk_queue._disk_queue_name, traceback.format_exc()))
+        try:
+            self.returned_disk_queue.close()
+        except:
+            logger.error('Could not close disk queue {0}: {1}'.format(self.returned_disk_queue._disk_queue_name, traceback.format_exc()))
+
 
 def sigtermHandler():
     global rs
     rs.keep_going = False
-    logger.debug('Waiting 10 seconds before returning data to Redis')
+    logger.debug('Waiting 10 seconds before returning data to Disk')
     time.sleep(10)
-    rs.back_to_redis()
+    rs.back_to_disk()
+    rs.close_disk_queues()
     logger.debug('Exiting program!')
 
 
@@ -305,6 +386,8 @@ def main():
     parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
     parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
     parser.add_option('--port', '-P', dest='redisPort', help='Redis Port', metavar='REDIS_PORT', default=6379)
+    parser.add_option('--queuesize', '-s', dest='redisQueueSize', help='Max Redis Queue Size', metavar='REDIS_QUEUE_SIZE', default=10000)
+    parser.add_option('--diskqueue', '-Q', dest='diskQueue', help='Disk Queue', metavar='DISK_QUEUE', default='redongo_disk_queue')
     parser.add_option('--logger', '-l', dest='logger', help='Logger Usage', metavar='LOGGER_USAGE', default='1')
     (options, args) = parser.parse_args()
 
@@ -332,6 +415,9 @@ def main():
 
     lc = LoopingCall(rs.check_completed_bulks)
     lc.start(1, now=False)
+
+    lc_redis_queue = LoopingCall(rs.check_redis_queue)
+    lc_redis_queue.start(1, now=False)
 
     reactor.callInThread(rs.run)
 
