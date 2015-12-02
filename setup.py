@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
-from pip.req import parse_requirements
+import pip
 import platform
 
 DIRS_EXCLUDED = ['dist', 'build', 'docs', 'tests']
 
-install_reqs = parse_requirements('requirements.txt')
+install_reqs = pip.req.parse_requirements('requirements.txt', session=pip.download.PipSession())
 # install_requires is a list of requirements
 install_requires = [str(ir.req) for ir in install_reqs]
 
