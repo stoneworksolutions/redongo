@@ -157,8 +157,8 @@ class RedongoServer(object):
     def back_to_disk(self):
         logger.debug('Returning memory data to Disk Queue')
         objects_returned = 0
-        for application_name, bulk, original_object in self.bulks.iteritems():
-            for obj, command in bulk['data']:
+        for application_name, bulk in self.bulks.iteritems():
+            for obj, command, original_object in bulk['data']:
                 self.returned_disk_queue.push(original_object)
                 objects_returned += 1
         logger.debug('{0} objects returned to Disk Queue'.format(objects_returned))
