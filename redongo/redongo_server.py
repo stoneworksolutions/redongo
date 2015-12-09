@@ -1,4 +1,3 @@
-
 import datetime
 import logging
 import logging.handlers
@@ -81,9 +80,8 @@ class RedongoServer(object):
 
     def save_to_failed_queue(self, application_name, bulk):
         i = 0
-        for obj, command in bulk['data']:
-            ser = serializer_utils.serializer(bulk['serializer'])
-            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), pickle.dumps([[application_name, bulk['serializer'], command], ser.dumps(obj)]))
+        for obj, command, original_object in bulk['data']:
+            self.redis.rpush('{0}_FAILED'.format(self.redisQueue), original_object)
             i += 1
         logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
 
@@ -130,7 +128,8 @@ class RedongoServer(object):
 
                 if object_found:
                     while self.objs:
-                        obj = pickle.loads(self.objs.pop(0))
+                        orig_obj = self.objs.pop(0)
+                        obj = pickle.loads(orig_obj)
                         try:
                             self.check_object(obj)
                             application_settings = self.get_application_settings(obj[0][0])
@@ -143,7 +142,7 @@ class RedongoServer(object):
                         application_bulk.update(application_settings)
                         ser = serializer_utils.serializer(obj[0][1])
                         obj_data = ser.loads(obj[1])
-                        application_bulk['data'].append((self.normalize_object(obj_data), obj[0][2]))
+                        application_bulk['data'].append((self.normalize_object(obj_data), obj[0][2], orig_obj))
 
                 while self.completed_bulks:
                     self.consume_application(self.completed_bulks.pop())
@@ -158,9 +157,9 @@ class RedongoServer(object):
     def back_to_disk(self):
         logger.debug('Returning memory data to Disk Queue')
         objects_returned = 0
-        for application_name, bulk in self.bulks.iteritems():
+        for application_name, bulk, original_object in self.bulks.iteritems():
             for obj, command in bulk['data']:
-                self.returned_disk_queue.push(pickle.dumps([[application_name, bulk['serializer'], command], self.serialize_object(obj, bulk['serializer'])]))
+                self.returned_disk_queue.push(original_object)
                 objects_returned += 1
         logger.debug('{0} objects returned to Disk Queue'.format(objects_returned))
 
@@ -183,13 +182,6 @@ class RedongoServer(object):
 
         return obj
 
-    def serialize_object(self, obj, serializer):
-        if obj.get('_id', None):
-            if type(obj['_id']) is ObjectId:
-                obj['_id'] = str(obj['_id'])
-        ser = serializer_utils.serializer(serializer)
-        return ser.dumps(obj)
-
     def deal_with_mongo(self, application_name):
         bulk = self.bulks[application_name]
         set_of_objects = []
@@ -204,7 +196,7 @@ class RedongoServer(object):
         # Separates objects with different commands. When appears any object with other command, executes current command for all readed objects
         current_command = bulk['data'][0][1]
         while bulk['data']:
-            obj, command = bulk['data'].pop(0)
+            obj, command, original_object = bulk['data'].pop(0)
             if command == current_command:
                 set_of_objects.append(obj)
             else:
