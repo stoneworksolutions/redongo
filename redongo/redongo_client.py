@@ -22,6 +22,19 @@ except:
 import copy
 
 
+class RedongoSentinelClient(RedongoClient):
+    ''' Just like the regular Redongo but accepts a redis connection instead of connection parameters '''
+    def __init__(self, redis_conn, redis_queue):
+        self.serializer_types = ['json', 'ujson', 'pickle']
+        self.redis = redis_conn
+        if redis_queue:
+            self.redis_queue = redis_queue
+        else:
+            raise client_exceptions.Client_NoQueueParameter('Not valid queue received: {0}'.format(redis_queue))
+
+        self.app_data = {}
+
+
 class RedongoClient():
     def __init__(self, redis_host, redis_db, redis_queue, redis_port=6379):
         self.serializer_types = ['json', 'ujson', 'pickle']
