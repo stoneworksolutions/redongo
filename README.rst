@@ -2,7 +2,7 @@
 redongo
 *******
 
-.. image:: https://travis-ci.org/stoneworksolutions/redongo.svg?branch=0.2.3
+.. image:: https://travis-ci.org/stoneworksolutions/redongo.svg?branch=0.2.4
     :target: https://travis-ci.org/stoneworksolutions/redongo
 
 ========
