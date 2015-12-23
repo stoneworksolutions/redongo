@@ -18,3 +18,12 @@ script:
   - py.test
 notifications:
   slack: stoneworksolutions:dWSagzBbTkOZUk7sZLNSs1AD
+deploy:
+  true:
+    repo: stoneworksolutions/redongo
+    tags: true
+  distributions: sdist
+  password:
+    secure: kNFdxZN8oumKgqMWr/X3X1EcsX2qbtKhHQrjFKfx35ptWsT0PxigDtGFmdeBzREYsCpfcEX/i06/TwTXljx4uwkmzeJPfFqOyv6BciaUfhq1+C8MUfTWQu7iwUJc28l82eGEa5KwrAXZy07sQ0rA21QWG5if2XMJ4VvLef1fgjYZrj2MpdzTB81/ti7OX8VVEyubYsZzLahsAWM+YgQcgJhkZbsO38GPKAt+hWma9vEn38hQ/OrAZ1F0Emwq/wnzr3kNcZ4l+Ngl+Pz4bI/EDYvWY1gYohtN5NAOXro4thtLLHMNrke2xg9gAMaRkcqqEnc2Ma2xmd7enbgNYjZzGY2XO6lfmLimtQt6D8posDJaERaq1dglAH302Ov0JmM0WVVaKuncd2VgatvbM47bSXbVC9IvbT2u5YAWVsUsAh/pG+1JX5XaUeZhjGqZK22bWzRuAhKGsknNpzVLW3k5ySMqmFaQd8OVxJWZV3NFK0AWtN4UMEpW62mjBJ7Qbo0g7HYf8dR5Vl6+mUxOGBQ1k8bQTqoi+hHoaQLNE73tkuZIei4OGSvdgca2pPyOMweQ3eJZYC903XaGlkuYW+W0B8E6MzqLgAFu0BBueOQvhJ62ezgAE7MReSyPsKD//k1mS/gCjAmM8EchWde1MpBcxI4p1dxwgy/KPRJ5cbYwzNw=
+  provider: pypi
+  user: stoneworksolutions
