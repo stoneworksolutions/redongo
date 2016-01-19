@@ -25,7 +25,8 @@ import copy
 class RedongoClient():
     def __init__(self, redis_host, redis_db, redis_queue, redis_port=6379):
         self.serializer_types = ['json', 'ujson', 'pickle']
-        self.redis = stoneredis.StoneRedis(redis_host, db=redis_db, port=redis_port)
+        self.redis = stoneredis.StoneRedis(redis_host, db=redis_db, port=redis_port, socket_connect_timeout=5, socket_timeout=5)
+        self.redis.connect()
         if redis_queue:
             self.redis_queue = redis_queue
         else:

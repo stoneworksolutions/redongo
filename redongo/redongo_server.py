@@ -58,7 +58,8 @@ class RedongoServer(object):
                 self.redis.set('redongo_sk', result)
             return result
         logger.debug('Starting Redongo Server..')
-        self.redis = stoneredis.StoneRedis(options.redisIP, db=options.redisDB, port=options.redisPort)
+        self.redis = stoneredis.StoneRedis(options.redisIP, db=options.redisDB, port=options.redisPort, socket_connect_timeout=5, socket_timeout=5)
+        self.redis.connect()
         self.keep_going = True
         self.redisQueue = options.redisQueue
         self.popSize = int(options.popSize)
