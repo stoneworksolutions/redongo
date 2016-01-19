@@ -18,6 +18,7 @@ from utils import queue_utils
 from optparse import OptionParser
 from pymongo.errors import DuplicateKeyError
 from twisted.internet import reactor
+from twisted.internet.error import ReactorNotRunning
 from twisted.internet.task import LoopingCall
 from redlock import Redlock
 
@@ -46,6 +47,7 @@ required_options = ['REDIS', 'REDIS_DB', 'REDIS_QUEUE']
 rs = None
 options = None
 args = None
+run_stopped = False
 
 
 class RedongoServer(object):
@@ -86,6 +88,7 @@ class RedongoServer(object):
         logger.warning('Moved {0} objects from application {1} to queue {2}_FAILED'.format(i, application_name, self.redisQueue))
 
     def run(self):
+        global run_stopped
         failed_objects = []
         first_run = True
         try:
@@ -148,10 +151,15 @@ class RedongoServer(object):
                     self.consume_application(self.completed_bulks.pop())
 
                 # Guarantee that the looping call can access the lock
-                time.sleep(.2)
+                time.sleep(.05)
+
+            logger.debug('Setting run_stopped to True')
+            run_stopped = True
 
         except:
             logger.error('Stopping redongo because unexpected exception: {0}'.format(traceback.format_exc()))
+            logger.debug('Setting run_stopped to True')
+            run_stopped = True
             stopApp()
 
     def back_to_disk(self):
@@ -348,17 +356,25 @@ class RedongoServer(object):
 
 def sigtermHandler():
     global rs
+    global run_stopped
     rs.keep_going = False
-    logger.debug('Waiting 10 seconds before returning data to Disk')
-    time.sleep(10)
+
+    logger.debug('Waiting for run_stopped')
+    while not run_stopped:
+        time.sleep(0.1)
     rs.back_to_disk()
     rs.close_disk_queues()
     logger.debug('Exiting program!')
 
 
 def stopApp():
+    global run_stopped
+
     logger.debug('Stopping app')
-    reactor.stop()
+    try:
+        reactor.stop()
+    except ReactorNotRunning:
+        run_stopped = True
 
 
 def closeApp(signum, frame):
