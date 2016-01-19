@@ -120,7 +120,7 @@ class RedongoServer(object):
                     except redis.TimeoutError:
                         pass
                     if object_found:
-                        self.objs.extend(self.redis.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                        self.objs.extend(self.redis.multi_lpop(self.redisQueue, self.popSize-1))
 
                 if lock:
                     self.redis.release_lock(lock)
@@ -321,7 +321,7 @@ class RedongoServer(object):
                     except redis.TimeoutError:
                         pass
                     if object_found:
-                        to_disk_queue.extend(self.redis.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                        to_disk_queue.extend(self.redis.multi_lpop(self.redisQueue, self.popSize-1))
                     self.save_to_disk_queue(to_disk_queue)
                 self.redis.release_lock(lock)
         except redis.TimeoutError:
