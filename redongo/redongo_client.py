@@ -1,10 +1,10 @@
 import os
 from utils import utils
-from utils import redis_utils
 from utils import cipher_utils
 from utils import serializer_utils
 import client_exceptions
 import general_exceptions
+import stoneredis
 import warnings
 try:
     import ujson as json
@@ -25,7 +25,7 @@ import copy
 class RedongoClient():
     def __init__(self, redis_host, redis_db, redis_queue, redis_port=6379):
         self.serializer_types = ['json', 'ujson', 'pickle']
-        self.redis = redis_utils.get_redis_connection(redis_host, redis_db=redis_db, redis_port=redis_port)
+        self.redis = stoneredis.StoneRedis(redis_host, db=redis_db, port=redis_port)
         if redis_queue:
             self.redis_queue = redis_queue
         else:

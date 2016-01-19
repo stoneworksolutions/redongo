@@ -7,11 +7,11 @@ import redis
 import server_exceptions
 import general_exceptions
 import signal
+import stoneredis
 import sys
 import time
 import traceback
 from utils import utils
-from utils import redis_utils
 from utils import cipher_utils
 from utils import serializer_utils
 from utils import queue_utils
@@ -20,7 +20,6 @@ from pymongo.errors import DuplicateKeyError
 from twisted.internet import reactor
 from twisted.internet.error import ReactorNotRunning
 from twisted.internet.task import LoopingCall
-from redlock import Redlock
 
 try:
     from bson.objectid import ObjectId
@@ -59,7 +58,7 @@ class RedongoServer(object):
                 self.redis.set('redongo_sk', result)
             return result
         logger.debug('Starting Redongo Server..')
-        self.redis = redis_utils.get_redis_connection(options.redisIP, redis_db=options.redisDB, redis_port=options.redisPort)
+        self.redis = stoneredis.StoneRedis(options.redisIP, db=options.redisDB, port=options.redisPort)
         self.keep_going = True
         self.redisQueue = options.redisQueue
         self.popSize = int(options.popSize)
@@ -70,7 +69,6 @@ class RedongoServer(object):
         self.cipher = cipher_utils.AESCipher(__get_sk__())
         self.disk_queue = queue_utils.Queue(queue_name=options.diskQueue)
         self.returned_disk_queue = queue_utils.Queue(queue_name='{0}_returned'.format(options.diskQueue))
-        self.redlock = Redlock([{"host": options.redisIP, "port": options.redisPort, "db": options.redisDB}])
         self.lock_key = '{0}_LOCK'.format(self.redisQueue)
 
     def check_object(self, obj):
@@ -97,10 +95,7 @@ class RedongoServer(object):
             while self.keep_going:
                 object_found = False
 
-                lock = self.redlock.lock(self.lock_key, 60 * 1000)
-                while not lock:
-                    time.sleep(1)
-                    lock = self.redlock.lock(self.lock_key, 60 * 1000)
+                lock = self.redis.wait_for_lock(self.lock_key, 60, auto_renewal=True)
 
                 if first_run:
                     while self.returned_disk_queue._length > 0:
@@ -124,10 +119,10 @@ class RedongoServer(object):
                     except redis.TimeoutError:
                         pass
                     if object_found:
-                        self.objs.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                        self.objs.extend(self.redis.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
 
                 if lock:
-                    self.redlock.unlock(lock)
+                    self.redis.release_lock(lock)
 
                 if object_found:
                     while self.objs:
@@ -317,14 +312,7 @@ class RedongoServer(object):
             if self.redis.llen(self.redisQueue) > self.redisQueueSize or self.disk_queue._length > 0:
                 to_disk_queue = []
                 object_found = False
-                lock = self.redlock.lock(self.lock_key, 60 * 1000)
-                cont = 0
-                while not lock:
-                    if cont % 10 == 0:
-                        logger.debug('Redis queue watcher waiting to get lock...')
-                    time.sleep(.2)
-                    lock = self.redlock.lock(self.lock_key, 60 * 1000)
-                    cont += 1
+                lock = self.redis.wait_for_lock(self.lock_key, 60, auto_renewal=True)
                 while self.redis.llen(self.redisQueue) > self.redisQueueSize:
                     try:
                         to_disk_queue.append(self.redis.blpop(self.redisQueue)[1])
@@ -332,9 +320,9 @@ class RedongoServer(object):
                     except redis.TimeoutError:
                         pass
                     if object_found:
-                        to_disk_queue.extend(redis_utils.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
+                        to_disk_queue.extend(self.redis.multi_lpop(self.redis, self.redisQueue, self.popSize-1))
                     self.save_to_disk_queue(to_disk_queue)
-                self.redlock.unlock(lock)
+                self.redis.release_lock(lock)
         except redis.TimeoutError:
             pass
 
