@@ -414,7 +414,7 @@ def validateArgs(parser, options):
     elif validateSentinelClient(parser, options):
         mode = 'Sentinel'
     else:
-        logger.error('Parameters for Redis connection not valid!\n\tUse -r HOST -d DB for Standard Redis mode\n\tUse -n GROUP NAME -S host1 port1 -s host2 port2 .. -s hostN:portN for Sentinel mode')
+        logger.error('Parameters for Redis connection not valid!\n\tUse -r HOST -d DB for Standard Redis mode\n\tUse -n GROUP NAME -S host1 port1 -S host2 port2 .. -S hostN:portN for Sentinel mode')
         sys.exit(-1)
 
     required_options = ['REDIS_QUEUE']
@@ -437,7 +437,7 @@ def main():
     parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
     parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
     parser.add_option('--port', '-P', dest='redisPort', help='Redis Port', metavar='REDIS_PORT', default=6379)
-    parser.add_option('--sentinelservers', '-S', dest='sentinelServers', help='Sentinel Servers (-S host1 port1 -s host2 port2 .. -s hostN portN)', metavar='SENTINEL_SERVERS', action='append', nargs=2)
+    parser.add_option('--sentinelservers', '-S', dest='sentinelServers', help='Sentinel Servers (-S host1 port1 -S host2 port2 .. -S hostN portN)', metavar='SENTINEL_SERVERS', action='append', nargs=2)
     parser.add_option('--sentinelname', '-n', dest='sentinelName', help='Sentinel Group Name', metavar='SENTINEL_NAME')
     parser.add_option('--queuesize', '-s', dest='redisQueueSize', help='Max Redis Queue Size', metavar='REDIS_QUEUE_SIZE', default=10000)
     parser.add_option('--diskqueue', '-Q', dest='diskQueue', help='Disk Queue', metavar='DISK_QUEUE', default='redongo_disk_queue')
