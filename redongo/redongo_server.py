@@ -4,6 +4,7 @@ import logging.handlers
 import os
 import pymongo
 import redis
+from redis.sentinel import Sentinel
 import server_exceptions
 import general_exceptions
 import signal
@@ -41,8 +42,6 @@ formatter = logging.Formatter('PID:%(process)s %(filename)s %(funcName)s %(level
 
 logger.setLevel(logging.DEBUG)
 
-required_options = ['REDIS', 'REDIS_DB', 'REDIS_QUEUE']
-
 rs = None
 options = None
 args = None
@@ -50,7 +49,7 @@ run_stopped = False
 
 
 class RedongoServer(object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, mode, *args, **kwargs):
         def __get_sk__():
             result = self.redis.get('redongo_sk')
             if not result:
@@ -58,8 +57,8 @@ class RedongoServer(object):
                 self.redis.set('redongo_sk', result)
             return result
         logger.debug('Starting Redongo Server..')
-        self.redis = stoneredis.StoneRedis(options.redisIP, db=options.redisDB, port=options.redisPort, socket_connect_timeout=5, socket_timeout=5)
-        self.redis.connect()
+        self.mode = mode
+        self.create_redis_connection()
         self.keep_going = True
         self.redisQueue = options.redisQueue
         self.popSize = int(options.popSize)
@@ -71,6 +70,24 @@ class RedongoServer(object):
         self.disk_queue = queue_utils.Queue(queue_name=options.diskQueue)
         self.returned_disk_queue = queue_utils.Queue(queue_name='{0}_returned'.format(options.diskQueue))
         self.lock_key = '{0}_LOCK'.format(self.redisQueue)
+
+    def create_redis_connection(self):
+        if self.mode == 'Redis':
+            self.redis = stoneredis.StoneRedis(options.redisIP, db=options.redisDB, port=options.redisPort, socket_connect_timeout=5, socket_timeout=5)
+            self.redis.connect()
+        else:
+            SENTINEL_POOL = Sentinel(
+                options.sentinelServers,
+                socket_timeout=0.1,
+                max_connections=1000,
+            )
+
+            self.redis = SENTINEL_POOL.master_for(
+                options.sentinelName,
+                redis_class=stoneredis.StoneRedis,
+                socket_timeout=5,
+                socket_connect_timeout=5,
+            )
 
     def check_object(self, obj):
         if type(obj) != list or len(obj) != 2:
@@ -371,6 +388,43 @@ def closeApp(signum, frame):
     stopApp()
 
 
+def validate(parser, options, required_options, silent=True):
+    for required_option in filter(lambda x: x.__dict__['metavar'] in required_options, parser.option_list):
+        if not getattr(options, required_option.dest):
+            if not silent:
+                logger.error('Option {0} not found'.format(required_option.metavar))
+            return False
+    return True
+
+
+def validateRedisClient(parser, options):
+    required_options = ['REDIS', 'REDIS_DB']
+    return validate(parser, options, required_options, silent=False)
+
+
+def validateSentinelClient(parser, options):
+    required_options = ['SENTINEL_SERVERS', 'SENTINEL_NAME']
+    return validate(parser, options, required_options, silent=False)
+
+
+def validateArgs(parser, options):
+
+    if validateRedisClient(parser, options):
+        mode = 'Redis'
+    elif validateSentinelClient(parser, options):
+        mode = 'Sentinel'
+    else:
+        logger.error('Parameters for Redis connection not valid!\n\tUse -r HOST -d DB for Standard Redis mode\n\tUse -n GROUP NAME -S host1 port1 -s host2 port2 .. -s hostN:portN for Sentinel mode')
+        sys.exit(-1)
+
+    required_options = ['REDIS_QUEUE']
+
+    if not validate(parser, options, required_options, silent=False):
+        sys.exit(-1)
+
+    return mode
+
+
 def main():
     global rs
     global options
@@ -383,15 +437,14 @@ def main():
     parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
     parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
     parser.add_option('--port', '-P', dest='redisPort', help='Redis Port', metavar='REDIS_PORT', default=6379)
+    parser.add_option('--sentinelservers', '-S', dest='sentinelServers', help='Sentinel Servers (-S host1 port1 -s host2 port2 .. -s hostN portN)', metavar='SENTINEL_SERVERS', action='append', nargs=2)
+    parser.add_option('--sentinelname', '-n', dest='sentinelName', help='Sentinel Group Name', metavar='SENTINEL_NAME')
     parser.add_option('--queuesize', '-s', dest='redisQueueSize', help='Max Redis Queue Size', metavar='REDIS_QUEUE_SIZE', default=10000)
     parser.add_option('--diskqueue', '-Q', dest='diskQueue', help='Disk Queue', metavar='DISK_QUEUE', default='redongo_disk_queue')
     parser.add_option('--logger', '-l', dest='logger', help='Logger Usage', metavar='LOGGER_USAGE', default='1')
     (options, args) = parser.parse_args()
 
-    for required_option in filter(lambda x: x.__dict__['metavar'] in required_options, parser.option_list):
-        if not getattr(options, required_option.dest):
-            logger.error('Option {0} not found'.format(required_option.metavar))
-            sys.exit(-1)
+    mode = validateArgs(parser, options)
 
     # With this line the logs are sent to syslog.
     if options.logger != '0':
@@ -408,7 +461,7 @@ def main():
     # Handler for SIGTERM
     reactor.addSystemEventTrigger('before', 'shutdown', sigtermHandler)
 
-    rs = RedongoServer()
+    rs = RedongoServer(mode)
 
     lc = LoopingCall(rs.check_completed_bulks)
     lc.start(1, now=False)
