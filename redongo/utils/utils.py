@@ -1,4 +1,4 @@
-from redongo import general_exceptions
+import general_exceptions
 try:
     import cPickle as pickle
 except:
