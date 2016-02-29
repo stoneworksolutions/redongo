@@ -12,10 +12,10 @@ import stoneredis
 import sys
 import time
 import traceback
-from utils import utils
-from utils import cipher_utils
-from utils import serializer_utils
-from utils import queue_utils
+import utils
+import cipher_utils
+import serializer_utils
+import queue_utils
 from optparse import OptionParser
 from pymongo.errors import DuplicateKeyError
 from twisted.internet import reactor
