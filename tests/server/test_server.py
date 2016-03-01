@@ -39,7 +39,7 @@ class TestServer:
         mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(MONGO_USER, MONGO_PASSWORD, MONGO_HOST, MONGO_DB))
         mongo_client[MONGO_DB][MONGO_COLLECTION].drop()
 
-        with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE), '-l', '0'):
+        with redirect_argv('redongo_server.py', '-r', str(REDIS_HOST), '-d', str(REDIS_DB), '-q', str(REDIS_QUEUE), '-L', '0'):
             redongo_server.main()
 
         r = redis.Redis(REDIS_HOST, db=REDIS_DB)

@@ -40,8 +40,6 @@ logger = logging.getLogger()
 
 formatter = logging.Formatter('PID:%(process)s %(filename)s %(funcName)s %(levelname)s %(message)s')
 
-logger.setLevel(logging.DEBUG)
-
 rs = None
 options = None
 args = None
@@ -56,7 +54,7 @@ class RedongoServer(object):
                 result = os.urandom(16)
                 self.redis.set('redongo_sk', result)
             return result
-        logger.debug('Starting Redongo Server..')
+        logger.info('Starting Redongo Server..')
         self.mode = mode
         self.create_redis_connection()
         self.keep_going = True
@@ -108,7 +106,7 @@ class RedongoServer(object):
         failed_objects = []
         first_run = True
         try:
-            logger.debug('Running!')
+            logger.info('Running!')
 
             while self.keep_going:
                 object_found = False
@@ -128,11 +126,13 @@ class RedongoServer(object):
                         if self.disk_queue._length:
                             self.objs.append(self.disk_queue.pop())
                             object_found = True
+                            logger.debug('Got {0} objects from disk queue {1}'.format(len(self.objs), self.disk_queue._disk_queue_name))
                         else:
                             break
                 else:
                     try:
                         self.objs.append(self.redis.blpop(self.redisQueue)[1])
+                        logger.debug('Got {0} objects from redis queue {1}'.format(len(self.objs), self.redisQueue))
                         object_found = True
                     except redis.TimeoutError:
                         pass
@@ -166,23 +166,23 @@ class RedongoServer(object):
                 # Guarantee that the looping call can access the lock
                 time.sleep(.05)
 
-            logger.debug('Setting run_stopped to True')
+            logger.info('Setting run_stopped to True')
             run_stopped = True
 
         except:
             logger.error('Stopping redongo because unexpected exception: {0}'.format(traceback.format_exc()))
-            logger.debug('Setting run_stopped to True')
+            logger.info('Setting run_stopped to True')
             run_stopped = True
             stopApp()
 
     def back_to_disk(self):
-        logger.debug('Returning memory data to Disk Queue')
+        logger.info('Returning memory data to Disk Queue')
         objects_returned = 0
         for application_name, bulk in self.bulks.iteritems():
             for obj, command, original_object in bulk['data']:
                 self.returned_disk_queue.push(original_object)
                 objects_returned += 1
-        logger.debug('{0} objects returned to Disk Queue'.format(objects_returned))
+        logger.info('{0} objects returned to Disk Queue'.format(objects_returned))
 
     def get_mongo_collection(self, bulk):
         mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(bulk['mongo_user'], self.cipher.decrypt(bulk['mongo_password']), bulk['mongo_host'], bulk['mongo_database']))
@@ -365,18 +365,18 @@ def sigtermHandler():
     global run_stopped
     rs.keep_going = False
 
-    logger.debug('Waiting for run_stopped')
+    logger.info('Waiting for run_stopped')
     while not run_stopped:
         time.sleep(0.1)
     rs.back_to_disk()
     rs.close_disk_queues()
-    logger.debug('Exiting program!')
+    logger.info('Exiting program!')
 
 
 def stopApp():
     global run_stopped
 
-    logger.debug('Stopping app')
+    logger.info('Stopping app')
     try:
         reactor.stop()
     except ReactorNotRunning:
@@ -384,7 +384,7 @@ def stopApp():
 
 
 def closeApp(signum, frame):
-    logger.debug('Received signal {0}'.format(signum))
+    logger.info('Received signal {0}'.format(signum))
     stopApp()
 
 
@@ -441,8 +441,11 @@ def main():
     parser.add_option('--sentinelname', '-n', dest='sentinelName', help='Sentinel Group Name', metavar='SENTINEL_NAME')
     parser.add_option('--queuesize', '-s', dest='redisQueueSize', help='Max Redis Queue Size', metavar='REDIS_QUEUE_SIZE', default=10000)
     parser.add_option('--diskqueue', '-Q', dest='diskQueue', help='Disk Queue', metavar='DISK_QUEUE', default='redongo_disk_queue')
-    parser.add_option('--logger', '-l', dest='logger', help='Logger Usage', metavar='LOGGER_USAGE', default='1')
+    parser.add_option('--logger', '-L', dest='logger', help='Logger Usage', metavar='LOGGER_USAGE', default='1')
+    parser.add_option('--log', '-l', dest='logLevel', help='Logger Level', metavar='LOG_LEVEL', default='debug')
     (options, args) = parser.parse_args()
+
+    logger.setLevel(getattr(logging, options.logLevel.upper(), 'DEBUG'))
 
     mode = validateArgs(parser, options)
 
