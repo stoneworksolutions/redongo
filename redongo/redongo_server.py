@@ -17,7 +17,7 @@ import cipher_utils
 import serializer_utils
 import queue_utils
 from optparse import OptionParser
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 from twisted.internet import reactor
 from twisted.internet.error import ReactorNotRunning
 from twisted.internet.task import LoopingCall
@@ -25,8 +25,9 @@ from twisted.internet.task import LoopingCall
 try:
     from bson.objectid import ObjectId
     from bson.errors import InvalidId
+    from bson.errors import InvalidDocument
 except ImportError:
-    from pymongo.objectid import ObjectId, InvalidId
+    from pymongo.objectid import ObjectId, InvalidId, InvalidDocument
 
 try:
     import cPickle as pickle
@@ -119,7 +120,7 @@ class RedongoServer(object):
                         object_found = True
                     first_run = False
                     if object_found:
-                        logger.debug('Got {0} objects from disk queue {1}'.format(len(self.objs), self.returned_disk_queue._disk_queue_name))
+                        logger.info('Got {0} objects from returned disk queue {1}'.format(len(self.objs), self.returned_disk_queue._disk_queue_name))
 
                 if self.disk_queue._length > 0:
                     for i in range(0, self.popSize):
@@ -210,7 +211,7 @@ class RedongoServer(object):
         result = None
         try:
             collection = self.get_mongo_collection(bulk)
-        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure, pymongo.errors.InvalidDocument), e:
+        except (PyMongoError, InvalidDocument), e:
             logger.error('Not saving bulk {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
             self.save_to_failed_queue(application_name, bulk)
             return
@@ -266,13 +267,15 @@ class RedongoServer(object):
             collection.insert(to_insert)
         except DuplicateKeyError:
             to_update = to_insert + to_update
+        except (PyMongoError, InvalidDocument):
+            to_failed.extend(to_insert)
 
         # One-to-one update
         while to_update:
             obj = to_update.pop(0)
             try:
                 collection.update({'_id': obj['_id']}, obj)
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure, pymongo.errors.InvalidDocument):
+            except (PyMongoError, InvalidDocument):
                 to_failed.append(obj)
         # Return unsaved objects
         return to_failed
@@ -306,7 +309,7 @@ class RedongoServer(object):
             obj = objs.pop(0)
             try:
                 collection.update({'_id': obj['_id']}, self.create_add_query(obj), upsert=True)
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure, pymongo.errors.InvalidDocument):
+            except (PyMongoError, InvalidDocument):
                 to_failed.append(obj)
         # Return unadded objects and info
         return to_failed
@@ -435,7 +438,7 @@ def main():
     parser.add_option('--redis', '-r', dest='redisIP', help='Redis server IP Address', metavar='REDIS')
     parser.add_option('--redisdb', '-d', dest='redisDB', help='Redis server DB', metavar='REDIS_DB')
     parser.add_option('--redisqueue', '-q', dest='redisQueue', help='Redis Queue', metavar='REDIS_QUEUE')
-    parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=100)
+    parser.add_option('--popsize', '-p', dest='popSize', help='Redis Pop Size', metavar='REDIS_POP_SIZE', default=1000)
     parser.add_option('--port', '-P', dest='redisPort', help='Redis Port', metavar='REDIS_PORT', default=6379)
     parser.add_option('--sentinelservers', '-S', dest='sentinelServers', help='Sentinel Servers (-S host1 port1 -S host2 port2 .. -S hostN portN)', metavar='SENTINEL_SERVERS', action='append', nargs=2)
     parser.add_option('--sentinelname', '-n', dest='sentinelName', help='Sentinel Group Name', metavar='SENTINEL_NAME')
