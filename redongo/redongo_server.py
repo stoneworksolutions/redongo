@@ -220,7 +220,7 @@ class RedongoServer(object):
         while bulk['data']:
             obj, command, original_object = bulk['data'].pop(0)
             if command == current_command:
-                set_of_objects.append(obj)
+                set_of_objects.append((obj, command, original_object))
             else:
                 # Execute command for all readed objects
                 if current_command == 'save':
@@ -230,9 +230,9 @@ class RedongoServer(object):
                 # Notify on failure
                 if result:
                     logger.error('Not saving {0} objects (moving to failed queue) from application {1} due to connection bad data'.format(len(result), application_name))
-                    to_failed += map(lambda x: (x, command), result)
+                    to_failed += result
                 current_command = command
-                set_of_objects = [obj]
+                set_of_objects = [(obj, command, original_object)]
         # Last set
         if current_command == 'save':
             result = self.save_to_mongo(collection, set_of_objects)
@@ -241,7 +241,7 @@ class RedongoServer(object):
         # Notify on failure
         if result:
             logger.error('Not saving {0} objects (moving to failed queue) from application {1} due to connection bad data'.format(len(result), application_name))
-            to_failed += map(lambda x: (x, current_command), result)
+            to_failed += result
 
         # If an error occurred, it notifies and inserts the required objects
         if to_failed:
@@ -254,17 +254,17 @@ class RedongoServer(object):
         to_failed = []
         differents = set()
         while objs:
-            obj = objs.pop(0)
-            if '_id' not in obj:
-                to_insert.append(obj)
-            elif obj['_id'] not in differents:
-                to_insert.append(obj)
-                differents.add(obj['_id'])
+            full_object = objs.pop(0)
+            if '_id' not in full_object[0]:
+                to_insert.append(full_object)
+            elif full_object[0]['_id'] not in differents:
+                to_insert.append(full_object)
+                differents.add(full_object[0]['_id'])
             else:
-                to_update.append(obj)
+                to_update.append(full_object)
         # Bulk insert
         try:
-            collection.insert(to_insert)
+            collection.insert(map(lambda x: x[0], to_insert))
         except DuplicateKeyError:
             to_update = to_insert + to_update
         except (PyMongoError, InvalidDocument):
@@ -272,11 +272,11 @@ class RedongoServer(object):
 
         # One-to-one update
         while to_update:
-            obj = to_update.pop(0)
+            full_obj = to_update.pop(0)
             try:
-                collection.update({'_id': obj['_id']}, obj)
+                collection.update({'_id': full_obj[0]['_id']}, full_obj[0])
             except (PyMongoError, InvalidDocument):
-                to_failed.append(obj)
+                to_failed.extend(to_update)
         # Return unsaved objects
         return to_failed
 
@@ -306,11 +306,12 @@ class RedongoServer(object):
         to_failed = []
         # One-to-one update
         while objs:
-            obj = objs.pop(0)
+            full_object = objs.pop(0)
+            obj = full_object[0]
             try:
                 collection.update({'_id': obj['_id']}, self.create_add_query(obj), upsert=True)
             except (PyMongoError, InvalidDocument):
-                to_failed.append(obj)
+                to_failed.append(full_object)
         # Return unadded objects and info
         return to_failed
 
