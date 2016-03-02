@@ -210,7 +210,7 @@ class RedongoServer(object):
         result = None
         try:
             collection = self.get_mongo_collection(bulk)
-        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure), e:
+        except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure, pymongo.errors.InvalidDocument), e:
             logger.error('Not saving bulk {0} (moving to failed queue) from application {1} due to connection bad data: {2}'.format(bulk, application_name, e))
             self.save_to_failed_queue(application_name, bulk)
             return
@@ -272,7 +272,7 @@ class RedongoServer(object):
             obj = to_update.pop(0)
             try:
                 collection.update({'_id': obj['_id']}, obj)
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure):
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure, pymongo.errors.InvalidDocument):
                 to_failed.append(obj)
         # Return unsaved objects
         return to_failed
@@ -306,7 +306,7 @@ class RedongoServer(object):
             obj = objs.pop(0)
             try:
                 collection.update({'_id': obj['_id']}, self.create_add_query(obj), upsert=True)
-            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure):
+            except (pymongo.errors.ConnectionFailure, pymongo.errors.ConfigurationError, pymongo.errors.OperationFailure, pymongo.errors.InvalidDocument):
                 to_failed.append(obj)
         # Return unadded objects and info
         return to_failed
