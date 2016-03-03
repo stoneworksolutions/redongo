@@ -66,8 +66,13 @@ class RedongoServer(object):
         self.completed_bulks = set()
         self.objs = []
         self.cipher = cipher_utils.AESCipher(__get_sk__())
+        disk_queue_load_time = time.time()
+        logger.info('Loading disk queues...')
         self.disk_queue = queue_utils.Queue(queue_name=options.diskQueue)
+        logger.info('Loading disk queue took {0}'.format(time.time() - disk_queue_load_time))
+        ret_disk_queue_load_time = time.time()
         self.returned_disk_queue = queue_utils.Queue(queue_name='{0}_returned'.format(options.diskQueue))
+        logger.info('Loading returned disk queue took {0}'.format(time.time() - ret_disk_queue_load_time))
         self.lock_key = '{0}_LOCK'.format(self.redisQueue)
 
     def create_redis_connection(self):
