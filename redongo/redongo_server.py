@@ -305,6 +305,8 @@ class RedongoServer(object):
             # Dict fields will be treated as the original object
             elif type_field is dict:
                 query = self.create_add_query(value, '{0}{1}.'.format(previous_field, field), query)
+            else:
+                query.setdefault('$set', {(previous_field + field): value})
         return query
 
     def add_in_mongo(self, collection, objs):
