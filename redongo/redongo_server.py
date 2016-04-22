@@ -191,7 +191,7 @@ class RedongoServer(object):
         logger.info('{0} objects returned to Disk Queue'.format(objects_returned))
 
     def get_mongo_collection(self, bulk):
-        mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}/{3}'.format(bulk['mongo_user'], self.cipher.decrypt(bulk['mongo_password']), bulk['mongo_host'], bulk['mongo_database']))
+        mongo_client = pymongo.MongoClient('mongodb://{0}:{1}@{2}:{3}/{4}'.format(bulk['mongo_user'], self.cipher.decrypt(bulk['mongo_password']), bulk['mongo_host'], bulk['mongo_port'], bulk['mongo_database']))
         mongo_db = mongo_client[bulk['mongo_database']]
         collection = mongo_db[bulk['mongo_collection']]
         return collection
