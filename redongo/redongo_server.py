@@ -109,7 +109,6 @@ class RedongoServer(object):
 
     def run(self):
         global run_stopped
-        failed_objects = []
         first_run = True
         try:
             logger.info('Running!')
@@ -150,21 +149,24 @@ class RedongoServer(object):
 
                 if object_found:
                     while self.objs:
-                        orig_obj = self.objs.pop(0)
-                        obj = pickle.loads(orig_obj)
                         try:
-                            self.check_object(obj)
-                            application_settings = self.get_application_settings(obj[0][0])
-                        except (server_exceptions.ObjectValidationError, general_exceptions.ApplicationSettingsError), e:
-                            logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
-                            failed_objects.append(obj[0])
+                            orig_obj = self.objs.pop(0)
+                            obj = pickle.loads(orig_obj)
+                            try:
+                                self.check_object(obj)
+                                application_settings = self.get_application_settings(obj[0][0])
+                            except (server_exceptions.ObjectValidationError, general_exceptions.ApplicationSettingsError), e:
+                                logger.error('Discarding {0} object because of {1}'.format(obj[0], e))
+                                continue
+                            application_bulk = self.bulks.setdefault(obj[0][0], {'serializer': obj[0][1], 'data': []})
+                            application_bulk.setdefault('inserted_date', datetime.datetime.utcnow())
+                            application_bulk.update(application_settings)
+                            ser = serializer_utils.serializer(obj[0][1])
+                            obj_data = ser.loads(obj[1])
+                            application_bulk['data'].append((self.normalize_object(obj_data), obj[0][2], orig_obj))
+                        except (ValueError, TypeError, IndexError, ImportError, pickle.PickleError), e:
+                            logger.error('Discarding {0} object because of {1}'.format(orig_obj, e))
                             continue
-                        application_bulk = self.bulks.setdefault(obj[0][0], {'serializer': obj[0][1], 'data': []})
-                        application_bulk.setdefault('inserted_date', datetime.datetime.utcnow())
-                        application_bulk.update(application_settings)
-                        ser = serializer_utils.serializer(obj[0][1])
-                        obj_data = ser.loads(obj[1])
-                        application_bulk['data'].append((self.normalize_object(obj_data), obj[0][2], orig_obj))
 
                 while self.completed_bulks:
                     self.consume_application(self.completed_bulks.pop())
