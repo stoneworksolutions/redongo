@@ -287,7 +287,9 @@ class RedongoServer(object):
         # Return unsaved objects
         return to_failed
 
-    def create_add_query(self, obj, previous_field='', query={}):
+    def create_add_query(self, obj, previous_field='', query=None):
+        if query is None:
+            query = {}
         for field, value in obj.iteritems():
             if field == '_id':
                 continue
