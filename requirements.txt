@@ -1,4 +1,4 @@
-Twisted==13.2.0
+Twisted==22.10.0
 argparse==1.2.1
 pycrypto==2.6.1
 pymongo==2.8
